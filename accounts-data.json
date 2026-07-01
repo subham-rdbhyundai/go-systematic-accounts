@@ -1,5 +1,50 @@
 {
-  "invoices": [],
+  "invoices": [
+    {
+      "type": "Tax Invoice",
+      "number": "s",
+      "date": "2026-07-01",
+      "dueDate": "",
+      "status": "Draft",
+      "clientName": "",
+      "clientAddress": "",
+      "clientGST": "",
+      "clientEmail": "",
+      "items": [
+        {
+          "desc": "",
+          "hsn": "",
+          "qty": 1,
+          "unit": "Nos",
+          "rate": 0,
+          "gst": 18
+        }
+      ],
+      "discount": 0,
+      "notes": "",
+      "terms": "Payment due within 30 days.\nPlease include invoice number in payment reference.",
+      "placeOfSupply": "",
+      "reverseCharge": false,
+      "subtotal": 0,
+      "gstTotal": 0,
+      "discAmt": 0,
+      "grand": 0,
+      "lines": [
+        {
+          "desc": "",
+          "hsn": "",
+          "qty": 1,
+          "unit": "Nos",
+          "rate": 0,
+          "gst": 18,
+          "subtotal": 0,
+          "gstAmt": 0,
+          "total": 0
+        }
+      ],
+      "id": "INV-MR2CNSW3"
+    }
+  ],
   "clients": [],
   "expenses": [],
   "receipts": [],
@@ -19,5 +64,5 @@
       "branch": "Gurusaday Road Branch"
     }
   },
-  "sha": "a669e92f87b9233a9a50224ecc7687a55aaeabf4"
+  "sha": "d586a201e745a71c68c56cd7dff8f1679bf754a6"
 }
