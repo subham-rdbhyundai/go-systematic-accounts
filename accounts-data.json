@@ -1,0 +1,23 @@
+{
+  "invoices": [],
+  "clients": [],
+  "expenses": [],
+  "receipts": [],
+  "companyInfo": {
+    "name": "Automation Pursuits LLP",
+    "brand": "Go Systematic",
+    "tagline": "AUTOMATE. ACCELERATE. ACHIEVE. AI",
+    "address": "Boltota Farms, 1st Floor, Suite #2, Annexe Building, Village Dulalpur, P.O. Khagramuri, Raipur Road, South 24 Paraganas, WB-700140",
+    "pan": "ACMFA7942H",
+    "gst": "Applied For",
+    "email": "automationpursuits@gmail.com",
+    "phone": "+919091535535",
+    "bank": {
+      "name": "AXIS BANK LTD",
+      "account": "925020036851030",
+      "ifsc": "UTIB0005822",
+      "branch": "Gurusaday Road Branch"
+    }
+  },
+  "sha": null
+}
