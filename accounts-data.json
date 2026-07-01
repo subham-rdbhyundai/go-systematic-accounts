@@ -1,45 +1,45 @@
 {
   "invoices": [
     {
-      "type": "Tax Invoice",
-      "number": "s",
+      "type": "Proforma Invoice",
+      "number": "GS-2026-2027-07-001",
       "date": "2026-07-01",
-      "dueDate": "",
+      "dueDate": "2026-07-30",
       "status": "Draft",
-      "clientName": "",
-      "clientAddress": "",
-      "clientGST": "",
-      "clientEmail": "",
+      "clientName": "STRONG WINGS LLP",
+      "clientAddress": "Plot-P68-71, D-2 block MIDC, KSB Chowk, Near Shiv Suzuki, Chinchwad-411019",
+      "clientGST": "27AELFS3010F1Z9",
+      "clientEmail": "strongwingshonda5@gmail.com",
       "items": [
         {
-          "desc": "",
+          "desc": "Automation Consultancy",
           "hsn": "",
-          "qty": 1,
-          "unit": "Nos",
-          "rate": 0,
-          "gst": 18
+          "qty": "125",
+          "unit": "Hrs",
+          "rate": "200",
+          "gst": "0"
         }
       ],
       "discount": 0,
-      "notes": "",
+      "notes": "All minor changes like change in prices, setup, placeholders to be complimentary unless major changes like total design changes are requested until 30th June 2027",
       "terms": "Payment due within 30 days.\nPlease include invoice number in payment reference.",
-      "placeOfSupply": "",
+      "placeOfSupply": "PUNE, MAHARASHTRA",
       "reverseCharge": false,
-      "subtotal": 0,
+      "subtotal": 25000,
       "gstTotal": 0,
       "discAmt": 0,
-      "grand": 0,
+      "grand": 25000,
       "lines": [
         {
-          "desc": "",
+          "desc": "Automation Consultancy",
           "hsn": "",
-          "qty": 1,
-          "unit": "Nos",
-          "rate": 0,
-          "gst": 18,
-          "subtotal": 0,
+          "qty": "125",
+          "unit": "Hrs",
+          "rate": "200",
+          "gst": "0",
+          "subtotal": 25000,
           "gstAmt": 0,
-          "total": 0
+          "total": 25000
         }
       ],
       "id": "INV-MR2CNSW3"
@@ -64,5 +64,5 @@
       "branch": "Gurusaday Road Branch"
     }
   },
-  "sha": "dd0e9ccb9fad130ca3dabaa19d502a1253b964ad"
+  "sha": "839e07907d8016ea914ffbad0f94058d27e61c6c"
 }
