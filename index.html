@@ -1804,6 +1804,11 @@ function amountInWords(amount) {
 }
 
 // ─── MAIN INVOICE PDF ───
+// Helper: check if GST is real (not pending/applied)
+function gstReal(C) {
+  return C.gst && !C.gst.toUpperCase().includes('PENDING') && !C.gst.toUpperCase().includes('APPLIED');
+}
+
 function exportInvoicePDF(inv, company) {
   const C = (company && company.brand) ? company : DEFAULT_COMPANY;
   const { jsPDF } = window.jspdf;
@@ -1935,12 +1940,11 @@ function exportInvoicePDF(inv, company) {
     inv.placeOfSupply ? ('Place of Supply: ' + inv.placeOfSupply) : null,
   ].filter(Boolean);
 
-  fromRows.forEach((row, i) => {
-    const fy = y + 22 + i * 5;
+  fromRows.forEach(function(row, i) {
+    var fy = y + 22 + i * 5;
     if (fy <= y + 41) {
-      doc.setTextColor(i === 0 ? SLATE : [160, 175, 210]);
-      if (i === 0) doc.setTextColor(...SLATE);
-      else doc.setTextColor(155, 170, 205);
+      if (i === 0) { doc.setTextColor(SLATE[0], SLATE[1], SLATE[2]); }
+      else { doc.setTextColor(155, 170, 205); }
       doc.text(row.substring(0, 36), BX2 + 4, fy);
     }
   });
@@ -2056,18 +2060,18 @@ function exportInvoicePDF(inv, company) {
   const TL = BX2 + 6;          // totals label x
   const TV = BX2 + HALF - 4;   // totals value right edge
 
-  const trow = (lbl, val, ty, r, g, b) => {
-    doc.setTextColor(...GRAY); doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
+  var trowFn = function(lbl, val, ty, cr, cg, cb) {
+    doc.setTextColor(GRAY[0], GRAY[1], GRAY[2]); doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
     doc.text(lbl, TL, ty);
-    doc.setTextColor(r != null ? r : DARK[0], g != null ? g : DARK[1], b != null ? b : DARK[2]);
+    doc.setTextColor(cr != null ? cr : DARK[0], cg != null ? cg : DARK[1], cb != null ? cb : DARK[2]);
     doc.setFont('helvetica', 'bold');
     doc.text(val, TV, ty, { align: 'right' });
   };
 
-  trow('Sub Total', fmtAmt(subtotal), y + 14);
-  if (discAmt > 0) trow('Discount', '- ' + fmtAmt(discAmt), y + 22, 20, 130, 60);
+  trowFn('Sub Total', fmtAmt(subtotal), y + 14);
+  if (discAmt > 0) trowFn('Discount', '- ' + fmtAmt(discAmt), y + 22, 20, 130, 60);
   const gstRowY = discAmt > 0 ? y + 30 : y + 22;
-  trow('Total GST', fmtAmt(gstTotal), gstRowY, AMBER[0], AMBER[1], AMBER[2]);
+  trowFn('Total GST', fmtAmt(gstTotal), gstRowY, AMBER[0], AMBER[1], AMBER[2]);
 
   // Grand total bar
   doc.setFillColor(...NAVY);
@@ -2146,10 +2150,6 @@ function exportInvoicePDF(inv, company) {
   doc.save((inv.number||'invoice') + '_' + (inv.clientName||'').split(' ').join('_') + '.pdf');
 }
 
-// Helper: check if GST is real (not pending/applied)
-function gstReal(C) {
-  return C.gst && !C.gst.toUpperCase().includes('PENDING') && !C.gst.toUpperCase().includes('APPLIED');
-}
 
 function exportReceiptPDF(r, company) {
   const C = (company && company.brand) ? company : DEFAULT_COMPANY;
