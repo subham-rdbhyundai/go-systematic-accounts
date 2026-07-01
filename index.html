@@ -1808,183 +1808,148 @@ function exportInvoicePDF(inv, company) {
   const C = (company && company.brand) ? company : DEFAULT_COMPANY;
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-  const W = 210, ml = 12, mr = 198;
-  const RS = 'Rs.'; // Use Rs. instead of rupee symbol - jsPDF cant render it
+  const W = 210, ml = 14, mr = 196;
+  const RS = 'Rs.';
+  const fmtAmt = (n) => RS + ' ' + Number(n||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
 
-  const NAVY = [13, 26, 58];
+  // ── COLORS ──
+  const NAVY  = [13, 26, 58];
   const AMBER = [188, 113, 31];
   const WHITE = [255, 255, 255];
   const LBLUE = [232, 239, 252];
-  const GRAY = [100, 115, 135];
-  const DARK = [20, 32, 65];
+  const GRAY  = [100, 115, 135];
+  const DARK  = [20, 32, 65];
   const LGRAY = [245, 248, 253];
-
-  const fmtAmt = (n) => RS + ' ' + Number(n||0).toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2});
 
   // ── HEADER ──
   doc.setFillColor(...NAVY);
-  doc.rect(0, 0, W, 42, 'F');
+  doc.rect(0, 0, W, 44, 'F');
   doc.setFillColor(...AMBER);
-  doc.rect(0, 42, W, 2.5, 'F');
+  doc.rect(0, 44, W, 2.5, 'F');
 
-  // Logo (use PNG icon — square format, cleaner)
-  try {
-    doc.addImage('data:image/png;base64,' + ICON_B64, 'PNG', ml, 5, 32, 32);
-  } catch(e) {
-    try {
-      doc.addImage('data:image/jpeg;base64,' + LOGO_B64, 'JPEG', ml, 5, 40, 16);
-    } catch(e2) {}
-  }
+  // Logo
+  try { doc.addImage('data:image/png;base64,' + ICON_B64, 'PNG', ml, 5, 32, 32); } catch(e) {}
 
-  // Company info — next to logo
+  // Company info
   const cx = ml + 36;
-  doc.setTextColor(...WHITE);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(17);
-  doc.text(C.brand || 'Go Systematic', cx, 15);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(6.5);
+  doc.setTextColor(...WHITE); doc.setFont('helvetica','bold'); doc.setFontSize(18);
+  doc.text(C.brand || 'Go Systematic', cx, 14);
+  doc.setFont('helvetica','normal'); doc.setFontSize(6.5);
   doc.setTextColor(...AMBER);
-  doc.text(C.tagline || 'AUTOMATE. ACCELERATE. ACHIEVE. AI', cx, 21);
-  doc.setTextColor(175, 188, 215);
-  doc.setFontSize(7);
-  doc.text(C.name || 'Automation Pursuits LLP', cx, 27);
+  doc.text(C.tagline || 'AUTOMATE. ACCELERATE. ACHIEVE. AI', cx, 20);
+  doc.setTextColor(175, 188, 215); doc.setFontSize(7.5);
+  doc.text(C.name || 'Automation Pursuits LLP', cx, 26);
+  // Full address — split into lines automatically
   if(C.address) {
-    const aLines = doc.splitTextToSize(C.address, 70);
-    doc.text(aLines[0], cx, 32);
+    const addrLines = doc.splitTextToSize(C.address, 100);
+    addrLines.slice(0,2).forEach((l,i) => doc.text(l, cx, 32+(i*5)));
   }
-  if(C.email) doc.text(C.email + (C.phone ? '  |  ' + C.phone : ''), cx, 37);
+  const contactY = C.address ? (doc.splitTextToSize(C.address,100).length > 1 ? 43 : 38) : 32;
+  const contactParts = [C.email, C.phone].filter(Boolean);
+  if(contactParts.length) doc.text(contactParts.join('  |  '), cx, Math.min(contactY, 42));
 
   // Doc type — top right
-  doc.setTextColor(...AMBER);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(22);
-  doc.text(inv.type || 'Invoice', mr, 16, { align: 'right' });
-  doc.setTextColor(195, 210, 240);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8.5);
-  doc.text('# ' + inv.number, mr, 24, { align: 'right' });
+  doc.setTextColor(...AMBER); doc.setFont('helvetica','bold'); doc.setFontSize(22);
+  doc.text(inv.type || 'Invoice', mr, 15, { align:'right' });
+  doc.setTextColor(195, 210, 240); doc.setFont('helvetica','normal'); doc.setFontSize(9);
+  doc.text('# ' + (inv.number||''), mr, 23, { align:'right' });
   doc.setFontSize(7.5);
-  doc.text('Date: ' + fmtDate(inv.date), mr, 30, { align: 'right' });
-  if(inv.dueDate) doc.text('Due: ' + fmtDate(inv.dueDate), mr, 36, { align: 'right' });
-  if(inv.placeOfSupply) doc.text('Place of Supply: ' + inv.placeOfSupply, mr, 42, { align: 'right', baseline:'top' });
+  doc.text('Date: ' + fmtDate(inv.date), mr, 29, { align:'right' });
+  if(inv.dueDate) doc.text('Due Date: ' + fmtDate(inv.dueDate), mr, 35, { align:'right' });
 
-  let y = 50;
+  let y = 52;
 
-  // ── BILL TO / FROM BOXES ──
-  const boxH = 40;
-  const halfW = (W - 2*ml - 6) / 2;
+  // ── BILL TO / FROM ──
+  const boxW = (W - 2*ml - 5) / 2;
+  const bx2 = ml + boxW + 5;  // FROM box x
 
-  // BILL TO box
+  // BILL TO
   doc.setFillColor(...LBLUE);
-  doc.roundedRect(ml, y, halfW, boxH, 2.5, 2.5, 'F');
-  doc.setDrawColor(...AMBER);
-  doc.setLineWidth(0.5);
-  doc.line(ml, y+10, ml+halfW, y+10);
-  doc.setTextColor(...AMBER);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7);
+  doc.roundedRect(ml, y, boxW, 42, 2, 2, 'F');
+  doc.setTextColor(...AMBER); doc.setFont('helvetica','bold'); doc.setFontSize(7);
   doc.text('BILL TO', ml+4, y+7);
-  doc.setTextColor(...DARK);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(10.5);
-  const clientShort = (inv.clientName||'—').substring(0,28);
-  doc.text(clientShort, ml+4, y+17);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7.5);
-  doc.setTextColor(...GRAY);
-  let cy2 = y+23;
+  doc.setDrawColor(...AMBER); doc.setLineWidth(0.4);
+  doc.line(ml+4, y+9, ml+boxW-4, y+9);
+  doc.setTextColor(...DARK); doc.setFont('helvetica','bold'); doc.setFontSize(10.5);
+  doc.text((inv.clientName||'—').substring(0,32), ml+4, y+16);
+  doc.setFont('helvetica','normal'); doc.setFontSize(7.5); doc.setTextColor(...GRAY);
+  let bty = y+22;
   if(inv.clientAddress) {
-    const al = doc.splitTextToSize(inv.clientAddress, halfW-8);
-    al.slice(0,2).forEach(l => { doc.text(l, ml+4, cy2); cy2+=5; });
+    const al = doc.splitTextToSize(inv.clientAddress, boxW-8);
+    al.slice(0,2).forEach(l => { doc.text(l, ml+4, bty); bty+=5; });
   }
-  if(inv.clientGST) { doc.text('GSTIN: ' + inv.clientGST, ml+4, cy2); cy2+=5; }
-  if(inv.clientEmail) doc.text(inv.clientEmail, ml+4, cy2);
+  if(inv.clientGST) { doc.text('GSTIN: '+inv.clientGST, ml+4, bty); bty+=5; }
+  if(inv.clientEmail) doc.text(inv.clientEmail, ml+4, Math.min(bty, y+39));
 
-  // FROM box
-  const fx = ml + halfW + 6;
+  // FROM
   doc.setFillColor(...NAVY);
-  doc.roundedRect(fx, y, halfW, boxH, 2.5, 2.5, 'F');
-  doc.setTextColor(...AMBER);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7);
-  doc.text('FROM', fx+4, y+7);
-  doc.setLineWidth(0.3);
-  doc.setDrawColor(...AMBER);
-  doc.line(fx, y+10, fx+halfW, y+10);
-  doc.setTextColor(...WHITE);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(10.5);
-  doc.text(C.brand || 'Go Systematic', fx+4, y+17);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7.5);
-  doc.setTextColor(175, 190, 220);
-  doc.text(C.name || 'Automation Pursuits LLP', fx+4, y+23);
-  if(C.email) doc.text(C.email, fx+4, y+29);
-  if(C.phone) doc.text(C.phone, fx+4, y+34);
+  doc.roundedRect(bx2, y, boxW, 42, 2, 2, 'F');
+  doc.setTextColor(...AMBER); doc.setFont('helvetica','bold'); doc.setFontSize(7);
+  doc.text('FROM', bx2+4, y+7);
+  doc.setDrawColor(255,255,255); doc.setLineWidth(0.2);
+  doc.line(bx2+4, y+9, bx2+boxW-4, y+9);
+  doc.setTextColor(...WHITE); doc.setFont('helvetica','bold'); doc.setFontSize(10.5);
+  doc.text(C.brand||'Go Systematic', bx2+4, y+16);
+  doc.setFont('helvetica','normal'); doc.setFontSize(7.5);
+  doc.setTextColor(175,190,220);
+  doc.text(C.name||'Automation Pursuits LLP', bx2+4, y+22);
+  let fry = y+28;
+  if(C.email) { doc.text(C.email, bx2+4, fry); fry+=5; }
+  if(C.phone) { doc.text(C.phone, bx2+4, fry); fry+=5; }
   const gstReal = C.gst && !C.gst.toUpperCase().includes('PENDING') && !C.gst.toUpperCase().includes('APPLIED');
-  if(gstReal) doc.text('GSTIN: ' + C.gst, fx+4, y+39);
-  else if(C.pan) doc.text('PAN: ' + C.pan, fx+4, y+39);
+  if(gstReal) { doc.text('GSTIN: '+C.gst, bx2+4, fry); fry+=5; }
+  if(C.pan) doc.text('PAN: '+C.pan, bx2+4, Math.min(fry, y+39));
+  if(inv.placeOfSupply) doc.text('Place of Supply: '+inv.placeOfSupply, bx2+4, y+40);
 
-  y += boxH + 6;
+  y += 48;
 
   // ── LINE ITEMS TABLE ──
-  // Column definitions — carefully spaced for A4
-  const COLS = [
-    { h:'#',        x: ml,     w: 8,   align:'center' },
-    { h:'Description & Details', x: ml+8,   w: 65,  align:'left'   },
-    { h:'HSN/SAC',  x: ml+73,  w: 20,  align:'center' },
-    { h:'Qty',      x: ml+93,  w: 14,  align:'right'  },
-    { h:'Rate',     x: ml+107, w: 24,  align:'right'  },
-    { h:'GST%',     x: ml+131, w: 14,  align:'center' },
-    { h:'Amount',   x: mr,     w: 24,  align:'right'  },
-  ];
+  // Columns: # | Description | HSN/SAC | Qty | Rate | GST% | Amount
+  // X positions (all right-aligned amounts, left-aligned text)
+  const COL = {
+    num:  { x: ml+1,  w: 7  },
+    desc: { x: ml+8,  w: 62 },
+    hsn:  { x: ml+71, w: 22 },
+    qty:  { x: ml+94, w: 16 },
+    rate: { x: ml+111,w: 24 },
+    gst:  { x: ml+136,w: 16 },
+    amt:  { x: mr,    w: 24 },
+  };
 
-  // Table header row
+  // Header
   doc.setFillColor(...NAVY);
   doc.rect(ml, y, W-2*ml, 9, 'F');
-  doc.setTextColor(...WHITE);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7.5);
-  COLS.forEach(c => {
-    doc.text(c.h, c.align==='right' ? c.x : c.x + (c.align==='center'? c.w/2 : 2), y+6, { align: c.align==='center'?'center':c.align });
-  });
+  doc.setTextColor(...WHITE); doc.setFont('helvetica','bold'); doc.setFontSize(7.5);
+  doc.text('#',          COL.num.x+COL.num.w/2,   y+6, {align:'center'});
+  doc.text('Description',COL.desc.x+2,             y+6, {align:'left'});
+  doc.text('HSN/SAC',    COL.hsn.x+COL.hsn.w/2,   y+6, {align:'center'});
+  doc.text('Qty',        COL.qty.x+COL.qty.w,      y+6, {align:'right'});
+  doc.text('Rate',       COL.rate.x+COL.rate.w,    y+6, {align:'right'});
+  doc.text('GST%',       COL.gst.x+COL.gst.w/2,   y+6, {align:'center'});
+  doc.text('Amount',     COL.amt.x,                y+6, {align:'right'});
   y += 9;
 
   const items = inv.lines || inv.items || [];
-  doc.setFont('helvetica', 'normal');
+  doc.setFont('helvetica','normal');
 
   items.forEach((item, i) => {
     const cl = calcLineItem(item);
-    const descLines = doc.splitTextToSize(item.desc||'', 62);
-    const rowH = Math.max(8, descLines.length * 5 + 3);
+    const descLines = doc.splitTextToSize(item.desc||'', COL.desc.w-2);
+    const rowH = Math.max(9, descLines.length * 5 + 4);
 
-    if(i%2===0) {
-      doc.setFillColor(...LGRAY);
-      doc.rect(ml, y, W-2*ml, rowH, 'F');
-    }
-    doc.setDrawColor(215, 225, 245);
-    doc.setLineWidth(0.2);
+    if(i%2===0) { doc.setFillColor(...LGRAY); doc.rect(ml, y, W-2*ml, rowH, 'F'); }
+    doc.setDrawColor(215,225,245); doc.setLineWidth(0.2);
     doc.line(ml, y+rowH, mr, y+rowH);
 
-    doc.setTextColor(...DARK);
-    doc.setFontSize(8);
-
-    // Sr no
-    doc.text(String(i+1), ml+4, y+5.5, {align:'center'});
-    // Description (with wrapping)
-    descLines.forEach((dl, di) => doc.text(dl, ml+10, y+5.5+(di*5)));
-    // HSN
-    doc.text(item.hsn||'—', ml+73+10, y+5.5, {align:'center'});
-    // Qty
-    doc.text(String(item.qty||0), ml+107, y+5.5, {align:'right'});
-    // Rate
-    doc.text(Number(item.rate||0).toLocaleString('en-IN',{minimumFractionDigits:2}), ml+131, y+5.5, {align:'right'});
-    // GST%
-    doc.text((item.gst||0)+'%', ml+131+14, y+5.5, {align:'center'});
-    // Amount
+    doc.setTextColor(...DARK); doc.setFontSize(8);
+    doc.text(String(i+1),               COL.num.x+COL.num.w/2,    y+6, {align:'center'});
+    descLines.forEach((dl,di) => doc.text(dl, COL.desc.x+2, y+6+(di*5)));
+    doc.text(item.hsn||'—',             COL.hsn.x+COL.hsn.w/2,   y+6, {align:'center'});
+    doc.text(String(item.qty||0),       COL.qty.x+COL.qty.w,      y+6, {align:'right'});
+    doc.text(Number(item.rate||0).toLocaleString('en-IN',{minimumFractionDigits:2}), COL.rate.x+COL.rate.w, y+6, {align:'right'});
+    doc.text((item.gst||0)+'%',         COL.gst.x+COL.gst.w/2,   y+6, {align:'center'});
     doc.setFont('helvetica','bold');
-    doc.text(Number(cl.total||0).toLocaleString('en-IN',{minimumFractionDigits:2}), mr, y+5.5, {align:'right'});
+    doc.text(Number(cl.total||0).toLocaleString('en-IN',{minimumFractionDigits:2}), COL.amt.x, y+6, {align:'right'});
     doc.setFont('helvetica','normal');
     y += rowH;
   });
@@ -1993,123 +1958,101 @@ function exportInvoicePDF(inv, company) {
 
   // ── BANK DETAILS + TOTALS ──
   const { subtotal, gstTotal, discAmt, grand } = calcDoc(inv.items||[], inv.discount);
-  const bkH = 46;
+  const secH = 50;
 
   // Bank details (LEFT)
   doc.setFillColor(...LBLUE);
-  doc.roundedRect(ml, y, halfW, bkH, 2.5, 2.5, 'F');
-  doc.setTextColor(...AMBER);
-  doc.setFont('helvetica','bold');
-  doc.setFontSize(7);
-  doc.text('PAYMENT & BANK DETAILS', ml+4, y+7);
-  doc.setLineWidth(0.4);
-  doc.setDrawColor(...AMBER);
-  doc.line(ml, y+10, ml+halfW, y+10);
+  doc.roundedRect(ml, y, boxW, secH, 2, 2, 'F');
+  doc.setTextColor(...AMBER); doc.setFont('helvetica','bold'); doc.setFontSize(7.5);
+  doc.text('PAYMENT & BANK DETAILS', ml+4, y+8);
+  doc.setDrawColor(...AMBER); doc.setLineWidth(0.4);
+  doc.line(ml+4, y+10, ml+boxW-4, y+10);
 
-  doc.setFont('helvetica','normal');
-  doc.setFontSize(8);
+  const LBL_X = ml+4;     // label left
+  const VAL_X = ml+30;    // value left (aligned column)
 
   if(C.bank && C.bank.name && C.bank.account) {
-    doc.setTextColor(...GRAY); doc.text('Account Name:', ml+4, y+16);
-    doc.setTextColor(...DARK); doc.setFont('helvetica','bold');
-    doc.text(C.name||'Automation Pursuits LLP', ml+36, y+16);
-    doc.setFont('helvetica','normal');
-
-    doc.setTextColor(...GRAY); doc.text('Bank:', ml+4, y+22);
-    doc.setTextColor(...DARK); doc.text(C.bank.name, ml+20, y+22);
-
-    doc.setTextColor(...GRAY); doc.text('A/C No:', ml+4, y+28);
-    doc.setTextColor(...DARK); doc.setFont('helvetica','bold');
-    doc.text(C.bank.account, ml+22, y+28);
-    doc.setFont('helvetica','normal');
-
-    doc.setTextColor(...GRAY); doc.text('IFSC:', ml+4, y+34);
-    doc.setTextColor(...DARK); doc.text(C.bank.ifsc||'', ml+18, y+34);
-
-    if(C.bank.branch) {
-      doc.setTextColor(...GRAY); doc.text('Branch:', ml+4, y+40);
-      doc.setTextColor(...DARK); doc.text(C.bank.branch, ml+22, y+40);
-    }
+    doc.setFontSize(7.5);
+    const brows = [
+      ['Account Name:', C.name||'Automation Pursuits LLP'],
+      ['Bank:',         C.bank.name],
+      ['A/C No:',       C.bank.account],
+      ['IFSC:',         C.bank.ifsc||''],
+      ['Branch:',       C.bank.branch||''],
+    ];
+    brows.forEach(([lbl,val],ri) => {
+      const ry = y+17+(ri*6.5);
+      doc.setTextColor(...GRAY); doc.setFont('helvetica','normal');
+      doc.text(lbl, LBL_X, ry);
+      doc.setTextColor(...DARK); doc.setFont('helvetica','bold');
+      doc.text(val.substring(0,26), VAL_X, ry);
+    });
   } else {
-    doc.setTextColor(170,60,60);
-    doc.setFontSize(8);
-    doc.text('Bank details not added yet.', ml+4, y+20);
-    doc.text('Go to Settings to add them.', ml+4, y+27);
+    doc.setTextColor(160,60,60); doc.setFontSize(8); doc.setFont('helvetica','normal');
+    doc.text('Bank details not configured.', ml+4, y+20);
+    doc.text('Add them in Settings.', ml+4, y+27);
   }
 
   // Totals (RIGHT)
-  const tx2 = fx + halfW - 4;
   doc.setFillColor(...LGRAY);
-  doc.roundedRect(fx, y, halfW, bkH, 2.5, 2.5, 'F');
-  doc.setFont('helvetica','normal');
+  doc.roundedRect(bx2, y, boxW, secH, 2, 2, 'F');
 
-  const trow = (label, val, fy, col) => {
-    doc.setTextColor(...GRAY); doc.setFont('helvetica','normal'); doc.setFontSize(8.5);
-    doc.text(label, fx+4, fy);
-    if(col) { doc.setTextColor(col[0], col[1], col[2]); } else { doc.setTextColor(...DARK); }
+  const TOT_LBL = bx2+6;
+  const TOT_VAL = bx2+boxW-4;
+
+  const trow2 = (lbl, val, ty, colR, colG, colB) => {
+    doc.setTextColor(...GRAY); doc.setFont('helvetica','normal'); doc.setFontSize(9);
+    doc.text(lbl, TOT_LBL, ty);
+    doc.setTextColor(colR||DARK[0], colG||DARK[1], colB||DARK[2]);
     doc.setFont('helvetica','bold');
-    doc.text(val, tx2, fy, {align:'right'});
+    doc.text(val, TOT_VAL, ty, {align:'right'});
   };
 
-  trow('Sub Total', fmtAmt(subtotal), y+12);
-  if(discAmt > 0) trow('Discount', '- '+fmtAmt(discAmt), y+20, [20,130,60]);
-  const gstRowY = discAmt > 0 ? 28 : 20; trow('Total GST', fmtAmt(gstTotal), y+gstRowY, AMBER);
+  trow2('Sub Total',  fmtAmt(subtotal),  y+14);
+  if(discAmt > 0) trow2('Discount', '- '+fmtAmt(discAmt), y+22, 20,130,60);
+  const gstY = discAmt > 0 ? y+30 : y+22;
+  trow2('Total GST',  fmtAmt(gstTotal),  gstY, AMBER[0],AMBER[1],AMBER[2]);
 
-  // Grand total bar inside right box
+  // Grand total bar
   doc.setFillColor(...NAVY);
-  doc.roundedRect(fx, y+bkH-14, halfW, 14, 0, 0, 'F');
-  doc.roundedRect(fx, y+bkH-14, halfW, 14, 2.5, 2.5, 'F');
-  doc.setTextColor(...WHITE);
-  doc.setFont('helvetica','bold');
-  doc.setFontSize(10);
-  doc.text('GRAND TOTAL', fx+5, y+bkH-5);
-  doc.setFontSize(11);
-  doc.text(fmtAmt(grand), tx2, y+bkH-5, {align:'right'});
+  doc.roundedRect(bx2, y+secH-14, boxW, 14, 2, 2, 'F');
+  doc.setTextColor(...WHITE); doc.setFont('helvetica','bold'); doc.setFontSize(10);
+  doc.text('GRAND TOTAL', TOT_LBL, y+secH-5);
+  doc.text(fmtAmt(grand), TOT_VAL, y+secH-5, {align:'right'});
 
-  y += bkH + 5;
+  y += secH + 5;
 
   // ── AMOUNT IN WORDS ──
   doc.setFillColor(255, 248, 232);
   doc.roundedRect(ml, y, W-2*ml, 9, 2, 2, 'F');
-  doc.setDrawColor(...AMBER);
-  doc.setLineWidth(0.5);
+  doc.setDrawColor(...AMBER); doc.setLineWidth(0.4);
   doc.roundedRect(ml, y, W-2*ml, 9, 2, 2, 'S');
-  doc.setTextColor(...AMBER);
-  doc.setFont('helvetica','bold');
-  doc.setFontSize(7.5);
+  doc.setTextColor(...AMBER); doc.setFont('helvetica','bold'); doc.setFontSize(7.5);
   doc.text('Amount in Words:', ml+4, y+6);
-  doc.setTextColor(...DARK);
-  doc.setFont('helvetica','italic');
-  doc.setFontSize(8);
-  try {
-    const words = amountInWords(grand);
-    doc.text(words, ml+42, y+6);
-  } catch(e) { doc.text('See grand total above', ml+42, y+6); }
-  y += 13;
+  doc.setTextColor(...DARK); doc.setFont('helvetica','italic'); doc.setFontSize(8);
+  try { doc.text(amountInWords(grand), ml+46, y+6); } catch(e) {}
+  y += 14;
 
   // ── NOTES ──
   if(inv.notes) {
-    doc.setFontSize(7.5);
-    doc.setTextColor(...GRAY);
-    doc.setFont('helvetica','bold');
-    doc.text('Notes:', ml, y+5);
-    doc.setFont('helvetica','normal');
-    doc.setTextColor(60,70,100);
-    const nl = doc.splitTextToSize(inv.notes, W-2*ml-14);
-    nl.slice(0,4).forEach((l,i) => doc.text(l, ml+14, y+5+(i*4.5)));
-    y += 6 + Math.min(nl.length,4)*4.5;
+    doc.setFillColor(245,248,253);
+    doc.roundedRect(ml, y, W-2*ml, 12, 2, 2, 'F');
+    doc.setTextColor(...AMBER); doc.setFont('helvetica','bold'); doc.setFontSize(7.5);
+    doc.text('Notes:', ml+4, y+5);
+    doc.setTextColor(60,70,100); doc.setFont('helvetica','normal'); doc.setFontSize(8);
+    const nl = doc.splitTextToSize(inv.notes, W-2*ml-30);
+    nl.slice(0,3).forEach((l,i) => doc.text(l, ml+20, y+5+(i*4.5)));
+    y += Math.max(12, nl.length*4.5+8);
   }
 
-  // Terms
+  // ── TERMS ──
   if(inv.terms) {
-    doc.setFontSize(7);
-    doc.setTextColor(...GRAY);
-    doc.setFont('helvetica','bold');
+    doc.setTextColor(...GRAY); doc.setFont('helvetica','bold'); doc.setFontSize(7.5);
     doc.text('Terms & Conditions:', ml, y+5);
-    doc.setFont('helvetica','normal');
-    doc.setTextColor(120,130,155);
-    const tl = doc.splitTextToSize(inv.terms, W-2*ml-26);
-    tl.slice(0,3).forEach((l,i) => doc.text(l, ml+26, y+5+(i*4)));
+    doc.setFont('helvetica','normal'); doc.setTextColor(100,115,135); doc.setFontSize(7.5);
+    const tl = doc.splitTextToSize(inv.terms, W-2*ml-40);
+    tl.slice(0,3).forEach((l,i) => doc.text(l, ml+40, y+5+(i*4.5)));
+    y += Math.max(10, tl.length*4.5+6);
   }
 
   // ── FOOTER ──
@@ -2119,27 +2062,20 @@ function exportInvoicePDF(inv, company) {
   doc.setFillColor(...AMBER);
   doc.rect(0, fY, W, 2, 'F');
 
-  doc.setTextColor(...WHITE);
-  doc.setFont('helvetica','bold');
-  doc.setFontSize(8.5);
+  doc.setTextColor(...WHITE); doc.setFont('helvetica','bold'); doc.setFontSize(9);
   doc.text(C.brand||'Go Systematic', ml, fY+9);
-  doc.setFont('helvetica','normal');
-  doc.setFontSize(6.5);
-  doc.setTextColor(170,185,215);
+  doc.setFont('helvetica','normal'); doc.setFontSize(6.5); doc.setTextColor(170,185,215);
   doc.text(C.name||'Automation Pursuits LLP', ml, fY+15);
 
-  doc.setTextColor(140,158,195);
-  doc.setFontSize(7);
+  doc.setTextColor(140,158,195); doc.setFontSize(7);
   doc.text('This is a computer-generated document — No physical signature required', W/2, fY+9, {align:'center'});
   if(C.email) doc.text(C.email, W/2, fY+15, {align:'center'});
 
-  doc.setTextColor(170,185,215);
-  doc.setFont('helvetica','normal');
-  doc.setFontSize(7);
-  if(gstReal) doc.text('GSTIN: ' + C.gst, mr, fY+9, {align:'right'});
-  if(C.pan) doc.text('PAN: ' + C.pan, mr, gstReal?fY+15:fY+9, {align:'right'});
+  doc.setTextColor(170,185,215); doc.setFont('helvetica','normal'); doc.setFontSize(7);
+  if(gstReal) doc.text('GSTIN: '+C.gst, mr, fY+9, {align:'right'});
+  if(C.pan) doc.text('PAN: '+C.pan, mr, gstReal?fY+15:fY+9, {align:'right'});
 
-  doc.save((inv.number||'invoice') + '_' + (inv.clientName||'').split(' ').join('_') + '.pdf');
+  doc.save((inv.number||'invoice')+'_'+(inv.clientName||'').split(' ').join('_')+'.pdf');
 }
 
 function exportReceiptPDF(r, company) {
