@@ -12,7 +12,7 @@
       "clientEmail": "strongwingshonda5@gmail.com",
       "items": [
         {
-          "desc": "Sheets Automation",
+          "desc": "Sheets Automation Consultation",
           "hsn": "",
           "qty": "125",
           "unit": "Hrs",
@@ -31,7 +31,7 @@
       "grand": 25000,
       "lines": [
         {
-          "desc": "Sheets Automation",
+          "desc": "Sheets Automation Consultation",
           "hsn": "",
           "qty": "125",
           "unit": "Hrs",
@@ -64,5 +64,5 @@
       "branch": "Gurusaday Road Branch"
     }
   },
-  "sha": "74902f57349d5ae6e479cbf754a575f8c947f45a"
+  "sha": "99bf9c7ad64ed8f5d216227e044b9782dd893213"
 }
