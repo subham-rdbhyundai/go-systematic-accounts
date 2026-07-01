@@ -1,5 +1,50 @@
 {
-  "invoices": [],
+  "invoices": [
+    {
+      "type": "Proforma Invoice",
+      "number": "GS-2026-07-001",
+      "date": "2026-07-01",
+      "dueDate": "2026-07-15",
+      "status": "Draft",
+      "clientName": "STRONG WINGS LLP",
+      "clientAddress": "PLOT-P68-71, D-2 BLOCK, MIDC, KSB CHOWK, NEAR SHIV SUZUKI, CHINCHWAD-411019",
+      "clientGST": "27AELFS3010F1Z9",
+      "clientEmail": "strongwingshonda5@gmail.com",
+      "items": [
+        {
+          "desc": "Sheets Automation",
+          "hsn": "",
+          "qty": "125",
+          "unit": "Hrs",
+          "rate": "200",
+          "gst": "0"
+        }
+      ],
+      "discount": 0,
+      "notes": "Complimentary changes to units, numbers, figures of doc and sheets until 30th June 2027 with respect to Google Sheets to PDF Creation & Placeholders edit.",
+      "terms": "Payment due within 15 days.\nPlease include invoice number in payment reference.",
+      "placeOfSupply": "Pune ",
+      "reverseCharge": false,
+      "subtotal": 25000,
+      "gstTotal": 0,
+      "discAmt": 0,
+      "grand": 25000,
+      "lines": [
+        {
+          "desc": "Sheets Automation",
+          "hsn": "",
+          "qty": "125",
+          "unit": "Hrs",
+          "rate": "200",
+          "gst": "0",
+          "subtotal": 25000,
+          "gstAmt": 0,
+          "total": 25000
+        }
+      ],
+      "id": "INV-MR2BUYE1"
+    }
+  ],
   "clients": [],
   "expenses": [],
   "receipts": [],
@@ -19,5 +64,5 @@
       "branch": "Gurusaday Road Branch"
     }
   },
-  "sha": "5c8f9478028c42352a67abdd05813ce8c3fc5462"
+  "sha": "74902f57349d5ae6e479cbf754a575f8c947f45a"
 }
