@@ -725,7 +725,7 @@ function Dashboard({ data, setPage }) {
 }
 
 function StatusBar({ label, count, total, color }) {
-  const pct = total>0 ? (count/total*100) : 0;
+  const pct = total > 0 ? (count/total*100) : 0;
   return (
     <div style={{marginBottom:14}}>
       <div className="flex-between" style={{marginBottom:4}}>
@@ -733,7 +733,7 @@ function StatusBar({ label, count, total, color }) {
         <span style={{fontSize:13,fontWeight:600}}>{count} / {total}</span>
       </div>
       <div style={{height:6,background:'var(--border)',borderRadius:3}}>
-        <div style={{height:6,width:`${pct}%`,background:color,borderRadius:3,transition:'width 0.4s'}}/>
+        <div style={{height:6,width:pct+'%',background:color,borderRadius:3,transition:'width 0.4s'}}/>
       </div>
     </div>
   );
@@ -1791,7 +1791,7 @@ function numToWords(n) {
   if(Math.floor(n/100000)) { str += numToWords(Math.floor(n/100000)) + ' Lakh '; n %= 100000; }
   if(Math.floor(n/1000)) { str += numToWords(Math.floor(n/1000)) + ' Thousand '; n %= 1000; }
   if(Math.floor(n/100)) { str += numToWords(Math.floor(n/100)) + ' Hundred '; n %= 100; }
-  if(n>0) { str += (str?'and ':''+(n<20?a[n]:b[Math.floor(n/10)]+(n%10?' '+a[n%10]:''))); }
+  if(n>0) { str += (str?' and ':'') + (n<20 ? a[n] : b[Math.floor(n/10)] + (n%10 ? ' '+a[n%10] : '')); }
   return str.trim();
 }
 function amountInWords(amount) {
@@ -1947,7 +1947,6 @@ function exportInvoicePDF(inv, company) {
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7.5);
   COLS.forEach(c => {
-    const tx2 = c.align==='right' ? c.x : c.align==='center' ? c.x - c.w/2 + (c.w/2) : c.x;
     doc.text(c.h, c.align==='right' ? c.x : c.x + (c.align==='center'? c.w/2 : 2), y+6, { align: c.align==='center'?'center':c.align });
   });
   y += 9;
@@ -2047,14 +2046,14 @@ function exportInvoicePDF(inv, company) {
   const trow = (label, val, fy, col) => {
     doc.setTextColor(...GRAY); doc.setFont('helvetica','normal'); doc.setFontSize(8.5);
     doc.text(label, fx+4, fy);
-    doc.setTextColor(col||DARK[0], col?col[1]:DARK[1], col?col[2]:DARK[2]);
+    if(col) { doc.setTextColor(col[0], col[1], col[2]); } else { doc.setTextColor(...DARK); }
     doc.setFont('helvetica','bold');
     doc.text(val, tx2, fy, {align:'right'});
   };
 
   trow('Sub Total', fmtAmt(subtotal), y+12);
-  if(discAmt>0) trow('Discount', '- '+fmtAmt(discAmt), y+20, [20,130,60]);
-  trow('Total GST', fmtAmt(gstTotal), y+(discAmt>0?28:20), AMBER);
+  if(discAmt > 0) trow('Discount', '- '+fmtAmt(discAmt), y+20, [20,130,60]);
+  const gstRowY = discAmt > 0 ? 28 : 20; trow('Total GST', fmtAmt(gstTotal), y+gstRowY, AMBER);
 
   // Grand total bar inside right box
   doc.setFillColor(...NAVY);
@@ -2140,11 +2139,11 @@ function exportInvoicePDF(inv, company) {
   if(gstReal) doc.text('GSTIN: ' + C.gst, mr, fY+9, {align:'right'});
   if(C.pan) doc.text('PAN: ' + C.pan, mr, gstReal?fY+15:fY+9, {align:'right'});
 
-  doc.save((inv.number||'invoice') + '_' + (inv.clientName||'').replace(/[^a-zA-Z0-9]/g,'_') + '.pdf');
+  doc.save((inv.number||'invoice') + '_' + (inv.clientName||'').split(' ').join('_') + '.pdf');
 }
 
 function exportReceiptPDF(r, company) {
-  const C = company || DEFAULT_COMPANY;
+  const C = (company && company.brand) ? company : DEFAULT_COMPANY;
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit:'mm', format:'a4' });
   const W=210, ml=14, mr=196;
@@ -2230,7 +2229,7 @@ function exportReceiptPDF(r, company) {
   doc.text('This is a computer-generated receipt', W/2, 284, {align:'center'});
   doc.text('No signature required', W/2, 289, {align:'center'});
   const gstReal = C.gst && !C.gst.toUpperCase().includes('PENDING');
-  if(gstReal) { doc.setTextColor(170,180,210); doc.text('GSTIN: '+C.gst, mr, 284, {align:'right'}); }
+  if(gstRealR) { doc.setTextColor(170,180,210); doc.text('GSTIN: '+C.gst, mr, 284, {align:'right'}); }
   if(C.pan) { doc.setTextColor(170,180,210); doc.text('PAN: '+C.pan, mr, 289, {align:'right'}); }
 
   doc.save('Receipt_' + r.number + '.pdf');
