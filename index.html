@@ -396,15 +396,139 @@
 
   .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
 
+
+  /* ── TABLET (≤900px) ── */
   @media (max-width: 900px) {
-    .sidebar { width: 200px; }
-    .main { margin-left: 200px; }
-    .stats-grid { grid-template-columns: repeat(2,1fr); }
+    .sidebar { width: 220px; }
+    .main { margin-left: 220px; }
+    .stats-grid { grid-template-columns: repeat(2, 1fr); }
+    .grid-2 { grid-template-columns: 1fr; }
+    .modal { max-width: 96vw; }
+    .modal-xl { max-width: 96vw; }
+    .form-grid-3 { grid-template-columns: 1fr 1fr; }
+    .content { padding: 18px; }
+  }
+
+  /* ── MOBILE (≤640px) ── */
+  @media (max-width: 640px) {
+    /* Sidebar hidden — replaced by bottom nav */
+    .sidebar { transform: translateX(-100%); transition: transform 0.25s ease; z-index: 300; }
+    .sidebar.open { transform: translateX(0); }
+    .sidebar-overlay { display: block !important; }
+    .main { margin-left: 0; }
+    .content { padding: 14px; }
+
+    /* Stats */
+    .stats-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+    .stat-value { font-size: 20px; }
+    .stat-card { padding: 14px; }
+
+    /* Grids collapse */
+    .grid-2 { grid-template-columns: 1fr; gap: 12px; }
+    .form-grid-2 { grid-template-columns: 1fr; gap: 10px; }
+    .form-grid-3 { grid-template-columns: 1fr; gap: 10px; }
+
+    /* Topbar */
+    .topbar { padding: 0 14px; height: 52px; }
+    .topbar-title { font-size: 16px; }
+
+    /* Tables — horizontal scroll */
+    .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    table { min-width: 600px; }
+    th, td { padding: 8px 10px; font-size: 12px; }
+
+    /* Modals — full screen on mobile */
+    .modal-backdrop { padding: 0; align-items: flex-end; }
+    .modal { max-width: 100%; width: 100%; border-radius: 16px 16px 0 0; max-height: 92vh; }
+    .modal-xl { max-width: 100%; width: 100%; border-radius: 16px 16px 0 0; max-height: 92vh; }
+    .modal-header { border-radius: 16px 16px 0 0; }
+    .modal-body { padding: 16px; }
+    .modal-footer { padding: 12px 16px; flex-wrap: wrap; gap: 8px; }
+    .modal-footer .btn { flex: 1; min-width: 120px; justify-content: center; }
+
+    /* Buttons */
+    .btn { padding: 9px 14px; font-size: 13px; }
+    .btn-sm { padding: 6px 10px; font-size: 12px; }
+
+    /* Bottom nav bar */
+    .bottom-nav { display: flex !important; }
+
+    /* Section titles */
+    .section-title { font-size: 18px; }
+
+    /* Tabs — horizontal scroll */
+    .tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; flex-wrap: nowrap; width: 100%; }
+    .tab-btn { white-space: nowrap; padding: 6px 12px; font-size: 12px; }
+
+    /* Search bar */
+    .search-bar { flex-wrap: wrap; }
+    .search-input-wrap { max-width: 100%; }
+
+    /* Action rows */
+    .flex-between { flex-wrap: wrap; gap: 10px; }
+
+    /* Invoice line items table */
+    .line-items-table th, .line-items-table td { padding: 6px 8px; font-size: 11px; }
+  }
+
+  /* Bottom navigation (mobile only) */
+  .bottom-nav {
+    display: none;
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: var(--navy-dark);
+    border-top: 1px solid rgba(255,255,255,0.08);
+    z-index: 200;
+    padding: 6px 0 env(safe-area-inset-bottom, 6px);
+    box-shadow: 0 -4px 20px rgba(13,26,58,0.3);
+  }
+  .bottom-nav-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 4px 2px;
+    cursor: pointer;
+    color: rgba(255,255,255,0.45);
+    font-size: 9px;
+    font-weight: 500;
+    letter-spacing: 0.3px;
+    transition: color 0.15s;
+    text-transform: uppercase;
+    min-width: 0;
+  }
+  .bottom-nav-item .bn-icon { font-size: 18px; line-height: 1; }
+  .bottom-nav-item.active { color: var(--amber); }
+  .bottom-nav-item:hover { color: var(--white); }
+
+  /* Sidebar overlay (mobile) */
+  .sidebar-overlay {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 299;
+    backdrop-filter: blur(2px);
+    border: none;
+    cursor: pointer;
+    padding: 0;
+  }
+
+  /* Mobile menu toggle button */
+  .menu-toggle {
+    display: none;
+    background: none;
+    border: none;
+    color: var(--navy);
+    font-size: 22px;
+    cursor: pointer;
+    padding: 4px 8px;
+    margin-right: 4px;
   }
   @media (max-width: 640px) {
-    .sidebar { display: none; }
-    .main { margin-left: 0; }
-    .stats-grid { grid-template-columns: 1fr; }
+    .menu-toggle { display: flex; align-items: center; }
+    /* Add bottom padding to main content so bottom nav doesn't cover it */
+    .content { padding-bottom: 80px; }
   }
 </style>
 </head>
@@ -520,8 +644,11 @@ function App() {
   const [page, setPage] = useState('dashboard');
   const [data, setData] = useState(EMPTY_DATA);
   const [showConfigModal, setShowConfigModal] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const github = useGitHubStorage();
   const COMPANY = useMemo(() => ({ ...DEFAULT_COMPANY, ...(data.companyInfo || {}) }), [data.companyInfo]);
+  
+  const navigate = (p) => { setPage(p); setSidebarOpen(false); };
 
   useEffect(() => {
     if (github.config.configured) loadFromGitHub();
@@ -561,8 +688,11 @@ function App() {
 
   return (
     <div>
+      {/* SIDEBAR OVERLAY (mobile) */}
+      {sidebarOpen && <button className="sidebar-overlay" onClick={()=>setSidebarOpen(false)} aria-label="Close menu"/>}
+      
       {/* SIDEBAR */}
-      <div className="sidebar">
+      <div className={`sidebar${sidebarOpen?' open':''}`}>
         <div className="sidebar-logo">
           <img src={`data:image/jpeg;base64,${LOGO_B64}`} alt="Go Systematic" onError={e=>e.target.style.display='none'} />
           <div>
@@ -573,7 +703,7 @@ function App() {
         <div className="sidebar-nav">
           <div className="sidebar-section-label">Navigation</div>
           {navItems.map(n => (
-            <div key={n.id} className={`nav-item ${page===n.id?'active':''}`} onClick={()=>setPage(n.id)}>
+            <div key={n.id} className={`nav-item ${page===n.id?'active':''}`} onClick={()=>navigate(n.id)}>
               <span className="icon">{n.icon}</span>{n.label}
             </div>
           ))}
@@ -587,8 +717,11 @@ function App() {
       {/* MAIN CONTENT */}
       <div className="main">
         <div className="topbar">
-          <div className="topbar-title">
-            {navItems.find(n=>n.id===page)?.icon} {navItems.find(n=>n.id===page)?.label}
+          <div style={{display:'flex',alignItems:'center',gap:4}}>
+            <button className="menu-toggle" onClick={()=>setSidebarOpen(s=>!s)} aria-label="Menu">☰</button>
+            <div className="topbar-title">
+              {navItems.find(n=>n.id===page)?.icon} {navItems.find(n=>n.id===page)?.label}
+            </div>
           </div>
           <div className="topbar-actions">
             {!github.config.configured && (
@@ -618,6 +751,23 @@ function App() {
           {page==='reports' && <Reports data={data} />}
           {page==='settings' && <Settings github={github} onConfigSave={()=>setShowConfigModal(false)} data={data} persist={persist} company={COMPANY} />}
         </div>
+      </div>
+
+      {/* BOTTOM NAV (mobile) */}
+      <div className="bottom-nav">
+        {[
+          {id:'dashboard', icon:'📊', label:'Home'},
+          {id:'invoices',  icon:'🧾', label:'Invoices'},
+          {id:'receipts',  icon:'💳', label:'Receipts'},
+          {id:'expenses',  icon:'💸', label:'Expenses'},
+          {id:'clients',   icon:'🏢', label:'Clients'},
+          {id:'reports',   icon:'📈', label:'Reports'},
+        ].map(n=>(
+          <div key={n.id} className={`bottom-nav-item${page===n.id?' active':''}`} onClick={()=>navigate(n.id)}>
+            <span className="bn-icon">{n.icon}</span>
+            <span>{n.label}</span>
+          </div>
+        ))}
       </div>
 
       {showConfigModal && <GitHubConfigModal github={github} onClose={()=>setShowConfigModal(false)} onSave={()=>{setShowConfigModal(false); loadFromGitHub();}} />}
@@ -710,7 +860,7 @@ function Dashboard({ data, setPage }) {
             <div className="divider"/>
             <div style={{fontSize:13,color:'var(--text-secondary)'}}>
               <strong>FY Summary</strong>
-              <div style={{marginTop:10,display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+              <div style={{marginTop:10,display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:8}}>
                 <SummaryItem label="Net Revenue" val={fmt(totalReceived)}/>
                 <SummaryItem label="Total GST" val={fmt(invoices.reduce((a,b)=>a+(b.gstTotal||0),0))}/>
                 <SummaryItem label="Expenses" val={fmt(totalExpenses)}/>
@@ -989,8 +1139,8 @@ function InvoiceForm({ initial, clients, onSave, onClose, company }) {
             </table>
           </div>
 
-          <div className="flex-between" style={{marginTop:16,alignItems:'flex-start'}}>
-            <div style={{flex:1,maxWidth:320}}>
+          <div style={{display:'flex',flexWrap:'wrap',gap:16,marginTop:16,alignItems:'flex-start'}}>
+            <div style={{flex:2,minWidth:260}}>
               <div className="form-group">
                 <label className="form-label">Discount (%)</label>
                 <input type="number" className="form-control" value={doc.discount} onChange={e=>setField('discount',e.target.value)} min={0} max={100} style={{maxWidth:120}}/>
@@ -1004,7 +1154,7 @@ function InvoiceForm({ initial, clients, onSave, onClose, company }) {
                 <textarea className="form-control" rows={3} value={doc.terms} onChange={e=>setField('terms',e.target.value)}/>
               </div>
             </div>
-            <div style={{minWidth:260,background:'var(--off-white)',borderRadius:8,padding:16,border:'1px solid var(--border)'}}>
+            <div style={{minWidth:240,flex:1,background:'var(--off-white)',borderRadius:8,padding:16,border:'1px solid var(--border)'}}>
               <TotalRow label="Subtotal" val={fmt(subtotal)}/>
               {discAmt>0 && <TotalRow label={`Discount (${doc.discount}%)`} val={`- ${fmt(discAmt)}`} color="var(--success)"/>}
               <TotalRow label="Total GST" val={fmt(gstTotal)} color="var(--amber)"/>
@@ -1283,12 +1433,12 @@ function Expenses({ data, persist }) {
         <button className="btn btn-primary" onClick={()=>{setEditing(null);setShowForm(true);}}>+ Add Expense</button>
       </div>
 
-      <div style={{display:'flex',gap:16,marginBottom:16}}>
-        <div className="stat-card amber" style={{flex:1,padding:'14px 18px'}}>
+      <div style={{marginBottom:16}}>
+        <div className="stat-card amber" style={{padding:'14px 18px',marginBottom:12}}>
           <div className="stat-label">Total ({catFilter})</div>
           <div className="stat-value" style={{fontSize:22}}>{fmt(total)}</div>
         </div>
-        <div style={{flex:3}}>
+        <div>
           <div className="tabs">
             {cats.map(c=><button key={c} className={`tab-btn ${catFilter===c?'active':''}`} onClick={()=>setCatFilter(c)}>{c}</button>)}
           </div>
@@ -1527,7 +1677,7 @@ function Reports({ data }) {
         <button className="btn btn-amber" onClick={exportFullReport}>⬇ Export Full Report (Excel)</button>
       </div>
 
-      <div className="stats-grid" style={{gridTemplateColumns:'repeat(4,1fr)'}}>
+      <div className="stats-grid">
         <div className="stat-card navy"><div className="stat-label">Total Revenue</div><div className="stat-value">{fmt(totalBilled)}</div></div>
         <div className="stat-card blue"><div className="stat-label">Received</div><div className="stat-value">{fmt(totalReceived)}</div></div>
         <div className="stat-card amber"><div className="stat-label">Net GST Payable</div><div className="stat-value">{fmt(netGST)}</div><div className="stat-sub">Collected: {fmt(totalGSTCollected)} | Input: {fmt(totalGSTInput)}</div></div>
@@ -1595,7 +1745,7 @@ function Settings({ github, onConfigSave, data, persist, company }) {
     <div>
       <div className="section-title">Settings</div>
       <div className="section-sub">Configure your account & integrations</div>
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:20,marginBottom:20}}>
+      <div className="grid-2" style={{marginBottom:20}}>
         <div className="card">
           <div className="card-header"><span className="card-title">☁️ GitHub Storage</span></div>
           <div className="card-body">
