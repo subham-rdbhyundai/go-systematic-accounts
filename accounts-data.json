@@ -1,6 +1,50 @@
 {
   "invoices": [
     {
+      "type": "Tax Invoice",
+      "number": "GS-2026-2027-07-002",
+      "date": "2026-07-02",
+      "dueDate": "2026-07-30",
+      "status": "Draft",
+      "clientName": "Zillion Analytics Pvt Ltd ",
+      "clientAddress": "1003, 10th Floor, Emaar Collonade, Golf Course Extn. road, Gurgaon, Haryana 122102",
+      "clientGST": "06AAACZ9796M1ZB",
+      "clientEmail": "accounts@zillion.io",
+      "items": [
+        {
+          "desc": "REFERRAL FEE",
+          "hsn": "",
+          "qty": 1,
+          "unit": "Nos",
+          "rate": "30000",
+          "gst": "0"
+        }
+      ],
+      "discount": 0,
+      "notes": "REFERRAL FEE FOR: STRONG WINGS LLP \nPI# 1733\nPAYMENT MADE ON: 2ND JULY 2026",
+      "terms": "Payment due within 30 days.\nPlease include invoice number in payment reference.",
+      "placeOfSupply": "",
+      "reverseCharge": false,
+      "subtotal": 30000,
+      "gstTotal": 0,
+      "discAmt": 0,
+      "grand": 30000,
+      "lines": [
+        {
+          "desc": "REFERRAL FEE",
+          "hsn": "",
+          "qty": 1,
+          "unit": "Nos",
+          "rate": "30000",
+          "gst": "0",
+          "subtotal": 30000,
+          "gstAmt": 0,
+          "total": 30000
+        }
+      ],
+      "id": "INV-MR3CUA6K"
+    },
+    {
       "type": "Invoice cum Receipt",
       "number": "GS-2026-2027-07-001-R",
       "date": "2026-07-02",
@@ -72,5 +116,5 @@
       "branch": "Gurusaday Road Branch"
     }
   },
-  "sha": "7b292812c61374ef7d096a53d2d6263405e63cff"
+  "sha": "0c7fc76db0f3460d061a44ae5c9059d8887da2fd"
 }
