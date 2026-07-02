@@ -2112,36 +2112,37 @@ function exportICRPDF(doc, form, company) {
   var C = (company && company.brand) ? company : DEFAULT_COMPANY;
   var jsPDF = window.jspdf.jsPDF;
   var pdf = new jsPDF({ orientation:'portrait', unit:'mm', format:'a4' });
-  var W=210, PL=14, PR=196;
+
+  // Page geometry
+  var W=210, PL=14, PR=194;   // PR=194 gives 2mm breathing room from edge
+  var INNER = PR - PL;        // usable width = 180mm
+
   var RS='Rs.';
-  var fmtAmt = function(n) { return RS+' '+Number(n||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2}); };
-  var fmtNum = function(n) { return Number(n||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2}); };
+  var fmtAmt = function(n){ return RS+' '+Number(n||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2}); };
+  var fmtNum = function(n){ return Number(n||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2}); };
 
   // Palette
-  var NAVY=[13,26,58], AMBER=[188,113,31], WHITE=[255,255,255];
+  var NAVY=[13,26,58],  AMBER=[188,113,31], WHITE=[255,255,255];
   var LBLUE=[232,239,252], LGRAY=[245,248,253];
-  var GRAY=[100,115,135], DARK=[20,32,65], SLATE=[175,188,215];
-  var GREEN=[20,130,70], GREENBG=[230,248,238];
+  var GRAY=[100,115,135],  DARK=[20,32,65],  SLATE=[175,188,215];
+  var GREEN=[20,130,70],   GREENBG=[230,248,238];
 
-  var subtotal = doc.subtotal||0;
-  var gstTotal = doc.gstTotal||0;
-  var discAmt  = doc.discAmt||0;
-  var grand    = doc.grand||0;
+  var subtotal = doc.subtotal||0, gstTotal=doc.gstTotal||0;
+  var discAmt  = doc.discAmt||0,  grand=doc.grand||0;
+  var isGstR   = gstReal(C);
 
-  // ── HEADER ──────────────────────────────────────
+  // ─── HEADER ─────────────────────────────────────────────
   pdf.setFillColor(NAVY[0],NAVY[1],NAVY[2]);
   pdf.rect(0,0,W,46,'F');
-  // Split accent stripe
-  pdf.setFillColor(AMBER[0],AMBER[1],AMBER[2]);
-  pdf.rect(0,46,W/2,2.5,'F');
-  pdf.setFillColor(GREEN[0],GREEN[1],GREEN[2]);
-  pdf.rect(W/2,46,W/2,2.5,'F');
+  // Split accent: amber left | green right
+  pdf.setFillColor(AMBER[0],AMBER[1],AMBER[2]); pdf.rect(0,46,W/2,2.5,'F');
+  pdf.setFillColor(GREEN[0],GREEN[1],GREEN[2]);  pdf.rect(W/2,46,W/2,2.5,'F');
 
   // Logo
-  try { pdf.addImage('data:image/png;base64,'+ICON_B64,'PNG',PL,7,32,32); } catch(e) {}
+  try { pdf.addImage('data:image/png;base64,'+ICON_B64,'PNG',PL,7,32,32); } catch(e){}
 
-  // Company block
-  var CX = PL+36;
+  // Company block (left of header)
+  var CX=PL+36;
   pdf.setTextColor(WHITE[0],WHITE[1],WHITE[2]);
   pdf.setFont('helvetica','bold'); pdf.setFontSize(18);
   pdf.text(C.brand||'Go Systematic', CX, 16);
@@ -2150,253 +2151,267 @@ function exportICRPDF(doc, form, company) {
   pdf.text(C.tagline||'AUTOMATE. ACCELERATE. ACHIEVE. AI', CX, 22);
   pdf.setTextColor(SLATE[0],SLATE[1],SLATE[2]); pdf.setFontSize(7.5);
   pdf.text(C.name||'Automation Pursuits LLP', CX, 28);
-  if(C.address) {
-    var aLines = pdf.splitTextToSize(C.address, 95);
+  if(C.address){
+    var aLines = pdf.splitTextToSize(C.address, 90);
     aLines.slice(0,2).forEach(function(l,i){ pdf.text(l,CX,33+i*5); });
   }
-  var cParts = [C.email,C.phone].filter(Boolean);
+  var cParts=[C.email,C.phone].filter(Boolean);
   if(cParts.length) pdf.text(cParts.join('  |  '), CX, 44);
 
-  // Doc title — single line "INVOICE CUM RECEIPT"
-  // Use two colors on same baseline via two text calls with measured width
-  pdf.setFont('helvetica','bold'); pdf.setFontSize(13);
-  var titleY = 18;
-  // Measure each part
-  pdf.setTextColor(AMBER[0],AMBER[1],AMBER[2]);
-  var part1 = 'INVOICE ';
-  var part2 = 'cum ';
-  var part3 = 'RECEIPT';
-  // Draw right-aligned — work backwards
-  var w3 = pdf.getTextWidth(part3);
-  var w2 = pdf.getTextWidth(part2);
-  var w1 = pdf.getTextWidth(part1);
-  var totalW = w1+w2+w3;
-  var startX = PR - totalW;
-  pdf.setTextColor(AMBER[0],AMBER[1],AMBER[2]); pdf.setFontSize(12);
-  pdf.text('INVOICE ', startX, titleY);
-  pdf.setTextColor(200,215,240); pdf.setFontSize(9);
-  pdf.text('cum ', startX+w1, titleY+0.5);
-  pdf.setTextColor(GREEN[0],GREEN[1],GREEN[2]); pdf.setFontSize(12);
-  pdf.text('RECEIPT', startX+w1+pdf.getTextWidth(part2), titleY);
+  // ── Doc title: "INVOICE cum RECEIPT" — all same font, same baseline, right-aligned ──
+  // Strategy: draw all three words at fontSize=13, same y, same font
+  // Use getStringUnitWidth to measure precisely then place each word
+  pdf.setFont('helvetica','bold');
+  var TITLE_Y = 16;
+  var FS_MAIN = 13, FS_CUM = 9;
 
-  // Doc number & dates
+  // Measure widths at correct sizes
+  pdf.setFontSize(FS_MAIN);
+  var wINV = pdf.getTextWidth('INVOICE ');
+  pdf.setFontSize(FS_CUM);
+  var wCUM = pdf.getTextWidth('cum ');
+  pdf.setFontSize(FS_MAIN);
+  var wREC = pdf.getTextWidth('RECEIPT');
+  var totalTW = wINV + wCUM + wREC;
+  var tx = PR - totalTW;   // start x so total block ends at PR
+
+  // Draw "INVOICE"
+  pdf.setFontSize(FS_MAIN); pdf.setTextColor(AMBER[0],AMBER[1],AMBER[2]);
+  pdf.text('INVOICE ', tx, TITLE_Y);
+  // Draw "cum" — slightly smaller, vertically centred on same baseline, lighter color
+  pdf.setFontSize(FS_CUM); pdf.setTextColor(180,200,235);
+  pdf.text('cum ', tx+wINV, TITLE_Y);
+  // Draw "RECEIPT"
+  pdf.setFontSize(FS_MAIN); pdf.setTextColor(GREEN[0],GREEN[1],GREEN[2]);
+  pdf.text('RECEIPT', tx+wINV+wCUM, TITLE_Y);
+
+  // Doc meta (right side, below title)
   pdf.setFont('helvetica','normal'); pdf.setFontSize(8); pdf.setTextColor(195,210,240);
-  pdf.text('# '+(doc.number||form.number||''), PR, 26, {align:'right'});
+  pdf.text('# '+(doc.number||form.number||''), PR, 24, {align:'right'});
   pdf.setFontSize(7.5);
-  pdf.text('Invoice Date: '+fmtDate(doc.date||form.date), PR, 32, {align:'right'});
-  pdf.text('Payment Date: '+fmtDate(form.paymentDate||today()), PR, 38, {align:'right'});
-  var isGstReal = gstReal(C);
-  if(isGstReal) { pdf.setTextColor(AMBER[0],AMBER[1],AMBER[2]); pdf.text('GSTIN: '+C.gst, PR, 44, {align:'right'}); }
-  else if(C.pan) { pdf.setTextColor(160,175,210); pdf.text('PAN: '+C.pan, PR, 44, {align:'right'}); }
+  pdf.text('Invoice Date: '+fmtDate(doc.date||form.date), PR, 30, {align:'right'});
+  pdf.text('Payment Date: '+fmtDate(form.paymentDate||today()), PR, 36, {align:'right'});
+  if(isGstR){ pdf.setTextColor(AMBER[0],AMBER[1],AMBER[2]); pdf.text('GSTIN: '+C.gst, PR, 42, {align:'right'}); }
+  else if(C.pan){ pdf.setTextColor(160,175,210); pdf.text('PAN: '+C.pan, PR, 42, {align:'right'}); }
 
-  var y = 54;
+  var y=54;
 
-  // ── INVOICE FOR / FROM ──────────────────────────
-  var HALF = (W-2*PL-5)/2;
+  // ─── INVOICE FOR / FROM ──────────────────────────────────
+  var HALF = (INNER-5)/2;   // each box = (180-5)/2 = 87.5mm
   var BX2  = PL+HALF+5;
-  var BOX_H = 44;
+  var BOX_H = 46;
 
-  // INVOICE FOR (left) — renamed from BILL TO
+  // INVOICE FOR (left)
   pdf.setFillColor(LBLUE[0],LBLUE[1],LBLUE[2]);
   pdf.roundedRect(PL,y,HALF,BOX_H,2,2,'F');
   pdf.setTextColor(AMBER[0],AMBER[1],AMBER[2]); pdf.setFont('helvetica','bold'); pdf.setFontSize(7);
   pdf.text('INVOICE FOR', PL+4, y+7);
   pdf.setDrawColor(AMBER[0],AMBER[1],AMBER[2]); pdf.setLineWidth(0.4);
-  pdf.line(PL+4, y+9, PL+HALF-4, y+9);
+  pdf.line(PL+4,y+9,PL+HALF-4,y+9);
   pdf.setTextColor(DARK[0],DARK[1],DARK[2]); pdf.setFont('helvetica','bold'); pdf.setFontSize(10.5);
-  pdf.text((doc.clientName||'—').substring(0,32), PL+4, y+16);
+  pdf.text((doc.clientName||'—').substring(0,30), PL+4, y+17);
   pdf.setFont('helvetica','normal'); pdf.setFontSize(7.5); pdf.setTextColor(GRAY[0],GRAY[1],GRAY[2]);
-  var bty = y+22;
+  var bty=y+23;
   if(doc.clientAddress){
-    var al = pdf.splitTextToSize(doc.clientAddress, HALF-8);
+    var al=pdf.splitTextToSize(doc.clientAddress,HALF-8);
     al.slice(0,2).forEach(function(l){ pdf.text(l,PL+4,bty); bty+=5; });
   }
-  if(doc.clientGST){ pdf.text('GSTIN: '+doc.clientGST, PL+4, Math.min(bty,y+37)); bty+=5; }
-  if(doc.clientEmail) pdf.text(doc.clientEmail, PL+4, Math.min(bty,y+42));
+  if(doc.clientGST){ pdf.text('GSTIN: '+doc.clientGST, PL+4, Math.min(bty,y+39)); bty+=5; }
+  if(doc.clientEmail) pdf.text(doc.clientEmail, PL+4, Math.min(bty,y+44));
 
-  // FROM (right) — fixed spacing, each row on own line
+  // FROM (right)
   pdf.setFillColor(NAVY[0],NAVY[1],NAVY[2]);
   pdf.roundedRect(BX2,y,HALF,BOX_H,2,2,'F');
   pdf.setTextColor(AMBER[0],AMBER[1],AMBER[2]); pdf.setFont('helvetica','bold'); pdf.setFontSize(7);
   pdf.text('FROM', BX2+4, y+7);
   pdf.setDrawColor(255,200,100); pdf.setLineWidth(0.3);
-  pdf.line(BX2+4, y+9, BX2+HALF-4, y+9);
+  pdf.line(BX2+4,y+9,BX2+HALF-4,y+9);
   pdf.setTextColor(WHITE[0],WHITE[1],WHITE[2]); pdf.setFont('helvetica','bold'); pdf.setFontSize(10.5);
-  pdf.text(C.brand||'Go Systematic', BX2+4, y+16);
-  // Remaining rows: name, email, phone, place of supply — fixed 5mm spacing
-  var fromDetails = [
-    {t: C.name||'Automation Pursuits LLP', bold:false},
-    {t: C.email||'',                        bold:false},
-    {t: C.phone||'',                        bold:false},
-    {t: doc.placeOfSupply ? 'Place of Supply: '+doc.placeOfSupply : '', bold:false},
-  ].filter(function(r){ return r.t; });
+  pdf.text(C.brand||'Go Systematic', BX2+4, y+17);
+  var fromRows=[C.name, C.email, C.phone,
+    doc.placeOfSupply?'Place of Supply: '+doc.placeOfSupply:null
+  ].filter(Boolean);
   pdf.setFont('helvetica','normal'); pdf.setFontSize(7.5);
-  fromDetails.forEach(function(row,i){
-    var fy = y+22+i*5.5;
-    if(fy <= y+41){
-      pdf.setTextColor(i===0 ? SLATE[0] : 155, i===0 ? SLATE[1] : 170, i===0 ? SLATE[2] : 205);
-      pdf.text(row.t.substring(0,36), BX2+4, fy);
+  fromRows.forEach(function(row,i){
+    var fy=y+23+i*5.5;
+    if(fy<=y+43){
+      pdf.setTextColor(i===0?SLATE[0]:155, i===0?SLATE[1]:170, i===0?SLATE[2]:205);
+      pdf.text(row.substring(0,34), BX2+4, fy);
     }
   });
 
-  y += BOX_H+6;
+  y+=BOX_H+6;
 
-  // ── LINE ITEMS TABLE ──────────────────────────
-  var C0={x:PL,    w:7};
-  var C1={x:PL+7,  w:62};
-  var C2={x:PL+69, w:19};
-  var C3={x:PL+88, w:15};
-  var C4={x:PL+103,w:27};
-  var C5={x:PL+130,w:14};
-  var C6={x:PR,    w:28};
+  // ─── LINE ITEMS TABLE ────────────────────────────────────
+  // Columns within INNER=180mm
+  var C0={x:PL,     w:7  };
+  var C1={x:PL+7,   w:60 };
+  var C2={x:PL+67,  w:20 };
+  var C3={x:PL+87,  w:16 };
+  var C4={x:PL+103, w:26 };
+  var C5={x:PL+129, w:15 };
+  var C6={x:PR,     w:26 };   // Amount right-anchored at PR=194
 
   pdf.setFillColor(NAVY[0],NAVY[1],NAVY[2]);
-  pdf.rect(PL,y,W-2*PL,9,'F');
+  pdf.rect(PL,y,INNER,9,'F');
   pdf.setTextColor(WHITE[0],WHITE[1],WHITE[2]); pdf.setFont('helvetica','bold'); pdf.setFontSize(7.5);
-  pdf.text('#',          C0.x+C0.w/2, y+6.5, {align:'center'});
-  pdf.text('Description',C1.x+2,      y+6.5, {align:'left'});
-  pdf.text('HSN/SAC',    C2.x+C2.w/2, y+6.5, {align:'center'});
-  pdf.text('Qty',        C3.x+C3.w,   y+6.5, {align:'right'});
-  pdf.text('Rate',       C4.x+C4.w,   y+6.5, {align:'right'});
-  pdf.text('GST%',       C5.x+C5.w/2, y+6.5, {align:'center'});
-  pdf.text('Amount',     C6.x,        y+6.5, {align:'right'});
-  y += 9;
+  pdf.text('#',           C0.x+C0.w/2, y+6.5, {align:'center'});
+  pdf.text('Description', C1.x+2,      y+6.5);
+  pdf.text('HSN/SAC',     C2.x+C2.w/2, y+6.5, {align:'center'});
+  pdf.text('Qty',         C3.x+C3.w,   y+6.5, {align:'right'});
+  pdf.text('Rate',        C4.x+C4.w,   y+6.5, {align:'right'});
+  pdf.text('GST%',        C5.x+C5.w/2, y+6.5, {align:'center'});
+  pdf.text('Amount',      C6.x,        y+6.5, {align:'right'});
+  y+=9;
 
-  var items = doc.lines||doc.items||[];
+  var items=doc.lines||doc.items||[];
   pdf.setFont('helvetica','normal');
   items.forEach(function(item,idx){
-    var cl = calcLineItem(item);
-    var descLines = pdf.splitTextToSize(item.desc||'', C1.w-2);
-    var rowH = Math.max(9, descLines.length*5+4);
-    if(idx%2===0){ pdf.setFillColor(LGRAY[0],LGRAY[1],LGRAY[2]); pdf.rect(PL,y,W-2*PL,rowH,'F'); }
-    pdf.setDrawColor(215,225,245); pdf.setLineWidth(0.2);
-    pdf.line(PL,y+rowH,PR,y+rowH);
+    var cl=calcLineItem(item);
+    var dLines=pdf.splitTextToSize(item.desc||'',C1.w-2);
+    var rowH=Math.max(9,dLines.length*5+4);
+    if(idx%2===0){ pdf.setFillColor(LGRAY[0],LGRAY[1],LGRAY[2]); pdf.rect(PL,y,INNER,rowH,'F'); }
+    pdf.setDrawColor(215,225,245); pdf.setLineWidth(0.2); pdf.line(PL,y+rowH,PR,y+rowH);
     pdf.setTextColor(DARK[0],DARK[1],DARK[2]); pdf.setFontSize(8);
-    pdf.text(String(idx+1),        C0.x+C0.w/2, y+6, {align:'center'});
-    descLines.forEach(function(dl,di){ pdf.text(dl,C1.x+2,y+6+di*5); });
-    pdf.text(item.hsn||'—',        C2.x+C2.w/2, y+6, {align:'center'});
-    pdf.text(String(item.qty||0),  C3.x+C3.w,   y+6, {align:'right'});
-    pdf.text(fmtNum(item.rate),    C4.x+C4.w,   y+6, {align:'right'});
-    pdf.text((item.gst||0)+'%',    C5.x+C5.w/2, y+6, {align:'center'});
+    pdf.text(String(idx+1),       C0.x+C0.w/2, y+6, {align:'center'});
+    dLines.forEach(function(dl,di){ pdf.text(dl,C1.x+2,y+6+di*5); });
+    pdf.text(item.hsn||'—',       C2.x+C2.w/2, y+6, {align:'center'});
+    pdf.text(String(item.qty||0), C3.x+C3.w,   y+6, {align:'right'});
+    pdf.text(fmtNum(item.rate),   C4.x+C4.w,   y+6, {align:'right'});
+    pdf.text((item.gst||0)+'%',   C5.x+C5.w/2, y+6, {align:'center'});
     pdf.setFont('helvetica','bold');
-    pdf.text(fmtNum(cl.total),     C6.x,        y+6, {align:'right'});
+    pdf.text(fmtNum(cl.total),    C6.x,        y+6, {align:'right'});
     pdf.setFont('helvetica','normal');
-    y += rowH;
+    y+=rowH;
   });
-  y += 5;
+  y+=5;
 
-  // ── TOTALS ONLY (full width — no bank details on ICR) ──
-  var totW = W-2*PL;
+  // ─── TOTALS (full width, right-aligned values) ───────────
+  // Row heights: subtotal, [discount], gst, grand total bar
+  var TOT_ROW = 10;
+  var grandH  = 14;
+  var totRows = 2 + (discAmt>0?1:0);  // subtotal + gst [+ discount]
+  var totH    = totRows*TOT_ROW + grandH + 6;
+
   pdf.setFillColor(LGRAY[0],LGRAY[1],LGRAY[2]);
-  pdf.roundedRect(PL,y,totW,40,2,2,'F');
-  var TL=PL+6, TV=PR;
+  pdf.roundedRect(PL,y,INNER,totH,2,2,'F');
+
+  var TL=PL+8, TV=PR-2;  // TV with 2mm breathing room
 
   function trow(lbl,val,ty,cr,cg,cb){
-    pdf.setTextColor(GRAY[0],GRAY[1],GRAY[2]); pdf.setFont('helvetica','normal'); pdf.setFontSize(9);
-    pdf.text(lbl, TL, ty);
+    pdf.setFont('helvetica','normal'); pdf.setFontSize(9);
+    pdf.setTextColor(GRAY[0],GRAY[1],GRAY[2]); pdf.text(lbl,TL,ty);
+    pdf.setFont('helvetica','bold');
     pdf.setTextColor(cr!=null?cr:DARK[0], cg!=null?cg:DARK[1], cb!=null?cb:DARK[2]);
-    pdf.setFont('helvetica','bold'); pdf.setFontSize(9);
     pdf.text(val, TV, ty, {align:'right'});
   }
-  trow('Sub Total', fmtAmt(subtotal), y+11);
-  if(discAmt>0) trow('Discount', '- '+fmtAmt(discAmt), y+19, 20,130,60);
-  var gstY2 = discAmt>0 ? y+27 : y+19;
-  trow('Total GST', fmtAmt(gstTotal), gstY2, AMBER[0],AMBER[1],AMBER[2]);
+
+  var tr1=y+TOT_ROW;
+  trow('Sub Total', fmtAmt(subtotal), tr1);
+  var tr2=tr1+TOT_ROW;
+  if(discAmt>0){ trow('Discount','- '+fmtAmt(discAmt),tr2,20,130,60); tr2+=TOT_ROW; }
+  trow('Total GST', fmtAmt(gstTotal), tr2, AMBER[0],AMBER[1],AMBER[2]);
 
   // Grand total bar
+  var gtY=y+totH-grandH;
   pdf.setFillColor(NAVY[0],NAVY[1],NAVY[2]);
-  pdf.roundedRect(PL,y+26,totW,14,2,2,'F');
-  pdf.setTextColor(WHITE[0],WHITE[1],WHITE[2]); pdf.setFont('helvetica','bold'); pdf.setFontSize(10.5);
-  pdf.text('GRAND TOTAL', TL, y+35);
-  pdf.text(fmtAmt(grand), TV, y+35, {align:'right'});
-  y += 45;
+  pdf.roundedRect(PL,gtY,INNER,grandH,2,2,'F');
+  pdf.setTextColor(WHITE[0],WHITE[1],WHITE[2]); pdf.setFont('helvetica','bold'); pdf.setFontSize(11);
+  pdf.text('GRAND TOTAL', TL, gtY+grandH-4);
+  pdf.text(fmtAmt(grand), TV, gtY+grandH-4, {align:'right'});
+  y+=totH+5;
 
-  // ── AMOUNT IN WORDS ──
+  // ─── AMOUNT IN WORDS ─────────────────────────────────────
   pdf.setFillColor(255,248,232);
-  pdf.roundedRect(PL,y,W-2*PL,9,2,2,'F');
+  pdf.roundedRect(PL,y,INNER,9,2,2,'F');
   pdf.setDrawColor(AMBER[0],AMBER[1],AMBER[2]); pdf.setLineWidth(0.4);
-  pdf.roundedRect(PL,y,W-2*PL,9,2,2,'S');
+  pdf.roundedRect(PL,y,INNER,9,2,2,'S');
   pdf.setTextColor(AMBER[0],AMBER[1],AMBER[2]); pdf.setFont('helvetica','bold'); pdf.setFontSize(7.5);
   pdf.text('Amount in Words:', PL+4, y+6);
   pdf.setTextColor(DARK[0],DARK[1],DARK[2]); pdf.setFont('helvetica','italic'); pdf.setFontSize(8);
-  try { pdf.text(amountInWords(grand), PL+46, y+6); } catch(e) {}
-  y += 13;
+  try { pdf.text(amountInWords(grand), PL+48, y+6); } catch(e){}
+  y+=13;
 
-  // ── PAYMENT RECEIVED BOX ──────────────────────
-  // Height: fixed rows for mode, ref, notes
-  var pmtH = 32;
+  // ─── PAYMENT RECEIVED BOX ────────────────────────────────
+  var pmtH=30;
   pdf.setFillColor(GREENBG[0],GREENBG[1],GREENBG[2]);
-  pdf.roundedRect(PL,y,W-2*PL,pmtH,2,2,'F');
+  pdf.roundedRect(PL,y,INNER,pmtH,2,2,'F');
   pdf.setDrawColor(GREEN[0],GREEN[1],GREEN[2]); pdf.setLineWidth(0.5);
-  pdf.roundedRect(PL,y,W-2*PL,pmtH,2,2,'S');
-  // Green left accent bar
+  pdf.roundedRect(PL,y,INNER,pmtH,2,2,'S');
   pdf.setFillColor(GREEN[0],GREEN[1],GREEN[2]);
   pdf.roundedRect(PL,y,4,pmtH,2,2,'F');
 
-  // Header row: PAYMENT RECEIVED label + amount right-aligned
+  // Row 1: label + amount
   pdf.setTextColor(GREEN[0],GREEN[1],GREEN[2]); pdf.setFont('helvetica','bold'); pdf.setFontSize(9.5);
   pdf.text('PAYMENT RECEIVED', PL+9, y+9);
-  pdf.setFontSize(13);
-  pdf.text(fmtAmt(grand), PR, y+9, {align:'right'});
+  pdf.setFontSize(13); pdf.text(fmtAmt(grand), TV, y+9, {align:'right'});
 
-  // Details row
+  // Row 2: mode + ref | date
   pdf.setFont('helvetica','normal'); pdf.setFontSize(7.5); pdf.setTextColor(DARK[0],DARK[1],DARK[2]);
-  var pmtDetails = [];
-  if(form.paymentMode) pmtDetails.push('Mode: '+form.paymentMode);
-  if(form.transRef)    pmtDetails.push('Ref: '+form.transRef);
-  if(pmtDetails.length) pdf.text(pmtDetails.join('     '), PL+9, y+17);
-
-  // Payment date right-aligned on row 2
+  var pmtParts=[];
+  if(form.paymentMode) pmtParts.push('Mode: '+form.paymentMode);
+  if(form.transRef)    pmtParts.push('Ref: '+form.transRef);
+  if(pmtParts.length)  pdf.text(pmtParts.join('     '), PL+9, y+17);
   pdf.setTextColor(GRAY[0],GRAY[1],GRAY[2]);
-  pdf.text('Date: '+fmtDate(form.paymentDate||today()), PR, y+17, {align:'right'});
+  pdf.text('Date: '+fmtDate(form.paymentDate||today()), TV, y+17, {align:'right'});
 
-  // Payment notes — full width, wrapped
-  if(form.paymentNotes) {
-    pdf.setTextColor(GRAY[0],GRAY[1],GRAY[2]); pdf.setFontSize(7.5);
-    var pnLines = pdf.splitTextToSize(form.paymentNotes, W-2*PL-22);
-    pnLines.slice(0,1).forEach(function(l){ pdf.text(l, PL+9, y+24); });
-  } else {
-    pdf.setTextColor(GRAY[0],GRAY[1],GRAY[2]); pdf.setFontSize(7.5);
-    pdf.text('Received with thanks. Payment confirmed in full.', PL+9, y+24);
-  }
-  y += pmtH+6;
+  // Row 3: acknowledgement note — fits in box
+  var pmtNote = form.paymentNotes || ('Received with thanks from '+(doc.clientName||'client')+'. Thank you for your business!');
+  pdf.setTextColor(GRAY[0],GRAY[1],GRAY[2]); pdf.setFontSize(7.5);
+  var pnLines=pdf.splitTextToSize(pmtNote, INNER-14);
+  pdf.text(pnLines[0]||'', PL+9, y+24);
+  y+=pmtH+6;
 
-  // ── NOTES (from invoice) ──
-  if(doc.notes) {
-    var noteAvailW = W-2*PL-22; // leave space for label
-    var noteLines = pdf.splitTextToSize(doc.notes, noteAvailW);
-    var noteH = Math.max(10, noteLines.length*5+8);
+  // ─── NOTES ──────────────────────────────────────────────
+  if(doc.notes){
+    // Calculate exact height needed BEFORE drawing the box
+    var noteLabelH=7, notePad=4;
+    var noteTextW = INNER-8;
+    var nLines=pdf.splitTextToSize(doc.notes, noteTextW);
+    var noteH=noteLabelH+nLines.length*5+notePad*2;
+    noteH=Math.max(14,noteH);
+
     pdf.setFillColor(LGRAY[0],LGRAY[1],LGRAY[2]);
-    pdf.roundedRect(PL,y,W-2*PL,noteH,2,2,'F');
+    pdf.roundedRect(PL,y,INNER,noteH,2,2,'F');
+    pdf.setDrawColor(215,225,245); pdf.setLineWidth(0.3);
+    pdf.roundedRect(PL,y,INNER,noteH,2,2,'S');
+
     pdf.setTextColor(AMBER[0],AMBER[1],AMBER[2]); pdf.setFont('helvetica','bold'); pdf.setFontSize(7.5);
     pdf.text('Notes:', PL+4, y+7);
     pdf.setTextColor(50,65,100); pdf.setFont('helvetica','normal'); pdf.setFontSize(7.8);
-    noteLines.forEach(function(l,i){
-      if(y+7+(i+1)*5 < y+noteH) pdf.text(l, PL+4, y+13+i*5);
+    nLines.forEach(function(l,i){
+      pdf.text(l, PL+4, y+noteLabelH+notePad+i*5);
     });
-    y += noteH+5;
+    y+=noteH+5;
   }
 
-  // ── LEGAL DECLARATION (required for ICR in India) ──
-  pdf.setFillColor(245,248,253);
-  pdf.roundedRect(PL,y,W-2*PL,16,2,2,'F');
-  pdf.setDrawColor(180,195,230); pdf.setLineWidth(0.3);
-  pdf.roundedRect(PL,y,W-2*PL,16,2,2,'S');
-  pdf.setTextColor(GRAY[0],GRAY[1],GRAY[2]); pdf.setFont('helvetica','bold'); pdf.setFontSize(7);
-  pdf.text('DECLARATION', PL+4, y+6);
-  pdf.setFont('helvetica','normal'); pdf.setFontSize(6.5); pdf.setTextColor(100,115,135);
-  var decl = 'We declare that this Invoice cum Receipt is raised for services/goods actually rendered/delivered. '+
-             'Payment of '+fmtAmt(grand)+' has been received in full against this invoice. '+
-             'This document serves as both a valid tax invoice and an acknowledgement of payment receipt.';
-  var declLines = pdf.splitTextToSize(decl, W-2*PL-8);
-  declLines.slice(0,2).forEach(function(l,i){ pdf.text(l, PL+4, y+11+i*4.5); });
-  y += 20;
+  // ─── LEGAL DECLARATION ──────────────────────────────────
+  var declText='We declare that this Invoice cum Receipt is raised for services/goods actually '+
+    'rendered/delivered. Payment of '+fmtAmt(grand)+' has been received in full '+
+    'against this invoice. This document serves as both a valid tax invoice and an '+
+    'acknowledgement of payment receipt as required under applicable Indian law.';
+  pdf.setFontSize(6.8);
+  var dLines=pdf.splitTextToSize(declText, INNER-8);
+  var declH=dLines.length*4.5+12;   // label height + padding
 
-  // ── FOOTER ──────────────────────────────────────
-  var FY = 277;
+  pdf.setFillColor(245,248,253);
+  pdf.roundedRect(PL,y,INNER,declH,2,2,'F');
+  pdf.setDrawColor(180,195,230); pdf.setLineWidth(0.3);
+  pdf.roundedRect(PL,y,INNER,declH,2,2,'S');
+
+  pdf.setTextColor(NAVY[0],NAVY[1],NAVY[2]); pdf.setFont('helvetica','bold'); pdf.setFontSize(7);
+  pdf.text('DECLARATION', PL+4, y+7);
+  pdf.setFont('helvetica','normal'); pdf.setFontSize(6.8); pdf.setTextColor(80,95,130);
+  dLines.forEach(function(l,i){
+    pdf.text(l, PL+4, y+12+i*4.5);
+  });
+  y+=declH+4;
+
+  // ─── FOOTER ─────────────────────────────────────────────
+  var FY=277;
   pdf.setFillColor(NAVY[0],NAVY[1],NAVY[2]); pdf.rect(0,FY,W,20,'F');
   pdf.setFillColor(AMBER[0],AMBER[1],AMBER[2]); pdf.rect(0,FY,W/2,2,'F');
-  pdf.setFillColor(GREEN[0],GREEN[1],GREEN[2]); pdf.rect(W/2,FY,W/2,2,'F');
+  pdf.setFillColor(GREEN[0],GREEN[1],GREEN[2]);  pdf.rect(W/2,FY,W/2,2,'F');
 
   pdf.setTextColor(WHITE[0],WHITE[1],WHITE[2]); pdf.setFont('helvetica','bold'); pdf.setFontSize(9);
   pdf.text(C.brand||'Go Systematic', PL, FY+9);
@@ -2408,8 +2423,8 @@ function exportICRPDF(doc, form, company) {
   if(C.email) pdf.text(C.email, W/2, FY+15, {align:'center'});
 
   pdf.setTextColor(SLATE[0],SLATE[1],SLATE[2]); pdf.setFont('helvetica','normal'); pdf.setFontSize(7);
-  if(isGstReal) pdf.text('GSTIN: '+C.gst, PR, FY+9, {align:'right'});
-  if(C.pan) pdf.text('PAN: '+C.pan, PR, isGstReal?FY+15:FY+9, {align:'right'});
+  if(isGstR) pdf.text('GSTIN: '+C.gst, PR, FY+9, {align:'right'});
+  if(C.pan)  pdf.text('PAN: '+C.pan, PR, isGstR?FY+15:FY+9, {align:'right'});
 
   pdf.save((doc.number||'ICR')+'_'+(doc.clientName||'').split(' ').join('_')+'_InvoiceCumReceipt.pdf');
 }
