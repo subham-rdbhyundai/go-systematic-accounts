@@ -1,11 +1,11 @@
 {
   "invoices": [
     {
-      "type": "Proforma Invoice",
-      "number": "GS-2026-2027-07-001",
-      "date": "2026-07-01",
+      "type": "Invoice cum Receipt",
+      "number": "GS-2026-2027-07-001-R",
+      "date": "2026-07-02",
       "dueDate": "2026-07-30",
-      "status": "Sent",
+      "status": "Paid",
       "clientName": "STRONG WINGS LLP",
       "clientAddress": "Plot-P68-71, D-2 block MIDC, KSB Chowk, Near Shiv Suzuki, Chinchwad-411019",
       "clientGST": "27AELFS3010F1Z9",
@@ -42,12 +42,77 @@
           "total": 25000
         }
       ],
-      "id": "INV-MR2CNSW3"
+      "id": "ICR-MR32OPMO",
+      "sourceId": "INV-MR2CNSW3",
+      "sourceNumber": "GS-2026-2027-07-001",
+      "paymentDate": "2026-07-02",
+      "paymentMode": "NEFT",
+      "transRef": "IN42618352372132",
+      "receiptNumber": "REC-MR32MVKS",
+      "paymentNotes": "Received with thanks from Strong Wings LLP. Thank You for your business!",
+      "convertedFrom": "INV-MR2CNSW3"
+    },
+    {
+      "type": "Proforma Invoice",
+      "number": "GS-2026-2027-07-001",
+      "date": "2026-07-01",
+      "dueDate": "2026-07-30",
+      "status": "Paid",
+      "clientName": "STRONG WINGS LLP",
+      "clientAddress": "Plot-P68-71, D-2 block MIDC, KSB Chowk, Near Shiv Suzuki, Chinchwad-411019",
+      "clientGST": "27AELFS3010F1Z9",
+      "clientEmail": "strongwingshonda5@gmail.com",
+      "items": [
+        {
+          "desc": "Automation Consultancy",
+          "hsn": "",
+          "qty": "125",
+          "unit": "Hrs",
+          "rate": "200",
+          "gst": "0"
+        }
+      ],
+      "discount": 0,
+      "notes": "All minor changes like change in prices, setup, placeholders to be complimentary unless major changes like total design changes are requested until 30th June 2027",
+      "terms": "Payment due within 30 days.\nPlease include invoice number in payment reference.",
+      "placeOfSupply": "PUNE, MAHARASHTRA",
+      "reverseCharge": false,
+      "subtotal": 25000,
+      "gstTotal": 0,
+      "discAmt": 0,
+      "grand": 25000,
+      "lines": [
+        {
+          "desc": "Automation Consultancy",
+          "hsn": "",
+          "qty": "125",
+          "unit": "Hrs",
+          "rate": "200",
+          "gst": "0",
+          "subtotal": 25000,
+          "gstAmt": 0,
+          "total": 25000
+        }
+      ],
+      "id": "INV-MR2CNSW3",
+      "convertedTo": "ICR-MR32OPMO"
     }
   ],
   "clients": [],
   "expenses": [],
-  "receipts": [],
+  "receipts": [
+    {
+      "id": "REC-MR32OPMO",
+      "number": "REC-MR32MVKS",
+      "date": "2026-07-02",
+      "clientName": "STRONG WINGS LLP",
+      "invoiceRef": "GS-2026-2027-07-001",
+      "amount": 25000,
+      "mode": "NEFT",
+      "transRef": "IN42618352372132",
+      "notes": "Auto-generated from Invoice cum Receipt ICR-MR32OPMO"
+    }
+  ],
   "companyInfo": {
     "name": "Automation Pursuits LLP",
     "brand": "Go Systematic",
@@ -64,5 +129,5 @@
       "branch": "Gurusaday Road Branch"
     }
   },
-  "sha": "423c3d9e754e3592a8b9b9b5cbbc6002cf7eba20"
+  "sha": "53f74d998e2c4c035b64e86a42f71d8752cb15cd"
 }
