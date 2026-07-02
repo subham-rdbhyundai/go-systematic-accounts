@@ -993,10 +993,12 @@ function Invoices({ data, persist, company }) {
                           <button className="btn btn-ghost btn-sm" onClick={()=>setPreview(inv)} title="Preview">👁</button>
                           <button className="btn btn-ghost btn-sm" onClick={()=>{setEditing(inv);setShowForm(true);}} title="Edit">✏️</button>
                           <button className="btn btn-ghost btn-sm" onClick={()=>exportInvoicePDF(inv, company)} title="PDF">📄</button>
-                          {(inv.type==='Proforma Invoice'||inv.type==='Tax Invoice'||inv.type==='Quotation') && !inv.convertedTo && (
-                            <button className="btn btn-ghost btn-sm" onClick={()=>setShowICR(inv)} title="Convert to Invoice cum Receipt" style={{color:'var(--success)'}}>🔄</button>
-                          )}
-                          {inv.convertedTo && <span title="Already converted" style={{fontSize:11,color:'var(--success)',padding:'0 4px'}}>✓ ICR</span>}
+                          {(inv.type==='Proforma Invoice'||inv.type==='Tax Invoice'||inv.type==='Quotation') && inv.type!=='Invoice cum Receipt' && (() => {
+                            const hasICR = invoices.some(x=>x.convertedFrom===inv.id);
+                            return hasICR
+                              ? <span title="ICR already generated" style={{fontSize:11,color:'var(--success)',padding:'0 4px',fontWeight:600}}>✓ ICR</span>
+                              : <button className="btn btn-ghost btn-sm" onClick={()=>setShowICR(inv)} title="Convert to Invoice cum Receipt" style={{color:'var(--success)'}}>🔄</button>;
+                          })()}
                           <button className="btn btn-ghost btn-sm" onClick={()=>del(inv.id)} title="Delete">🗑</button>
                         </div>
                       </td>
@@ -2756,96 +2758,209 @@ function exportInvoicePDF(inv, company) {
 
 
 function exportReceiptPDF(r, company) {
-  const C = (company && company.brand) ? company : DEFAULT_COMPANY;
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({ unit:'mm', format:'a4' });
-  const W=210, ml=14, mr=196;
-  const NAVY=[13,26,58], AMBER=[188,113,31], WHITE=[255,255,255], GRAY=[100,110,130], DARK=[30,40,70];
+  var C = (company && company.brand) ? company : DEFAULT_COMPANY;
+  var jsPDF = window.jspdf.jsPDF;
+  var pdf = new jsPDF({ orientation:'portrait', unit:'mm', format:'a4' });
+  var W=210, PL=14, PR=196;
+  var RS='Rs.';
+  var fmtAmt = function(n) { return RS+' '+Number(n||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2}); };
 
-  // Header
-  doc.setFillColor(...NAVY); doc.rect(0,0,W,38,'F');
-  doc.setFillColor(...AMBER); doc.rect(0,38,W,2,'F');
-  try { doc.addImage('data:image/jpeg;base64,'+LOGO_B64,'JPEG',ml,4,30,30); } catch(e){}
-  doc.setTextColor(...WHITE); doc.setFont('helvetica','bold'); doc.setFontSize(18);
-  doc.text(C.brand||'Go Systematic', ml+34, 16);
-  doc.setFontSize(7); doc.setFont('helvetica','normal');
-  doc.setTextColor(...AMBER);
-  doc.text(C.tagline||'AUTOMATE. ACCELERATE. ACHIEVE. AI', ml+34, 22);
-  doc.setTextColor(180,190,210); doc.setFontSize(7.5);
-  doc.text(C.name||'Automation Pursuits LLP', ml+34, 28);
-  // Right: Receipt label
-  doc.setTextColor(...AMBER); doc.setFont('helvetica','bold'); doc.setFontSize(20);
-  doc.text('PAYMENT RECEIPT', mr, 16, {align:'right'});
-  doc.setTextColor(200,215,240); doc.setFont('helvetica','normal'); doc.setFontSize(9);
-  doc.text('# ' + r.number, mr, 24, {align:'right'});
-  doc.text('Date: ' + fmtDate(r.date), mr, 30, {align:'right'});
+  // Palette
+  var NAVY=[13,26,58], AMBER=[188,113,31], WHITE=[255,255,255];
+  var LBLUE=[232,239,252], LGRAY=[245,248,253];
+  var GRAY=[100,115,135], DARK=[20,32,65], SLATE=[175,188,215];
+  var GREEN=[20,130,70], GREENBG=[230,248,238];
 
-  let y = 50;
-  // Amount highlight box
-  doc.setFillColor(255,248,235); doc.roundedRect(ml, y, W-2*ml, 20, 3, 3, 'F');
-  doc.setFillColor(...AMBER); doc.roundedRect(ml, y, 4, 20, 2, 2, 'F');
-  doc.setTextColor(...GRAY); doc.setFont('helvetica','normal'); doc.setFontSize(8);
-  doc.text('AMOUNT RECEIVED', ml+10, y+8);
-  doc.setTextColor(...NAVY); doc.setFont('helvetica','bold'); doc.setFontSize(16);
-  doc.text('₹ ' + Number(r.amount||0).toLocaleString('en-IN',{minimumFractionDigits:2}), ml+10, y+17);
-  y += 28;
+  var amount = parseFloat(r.amount)||0;
+  var isGstR = gstReal(C);
 
-  // Details
-  doc.setFillColor(235,241,252); doc.roundedRect(ml, y, W-2*ml, 50, 3, 3, 'F');
-  doc.setTextColor(...AMBER); doc.setFont('helvetica','bold'); doc.setFontSize(7);
-  doc.text('PAYMENT DETAILS', ml+4, y+8);
-  const details = [
-    ['Received From', r.clientName||'—'],
-    ['Against Invoice', r.invoiceRef||'—'],
-    ['Payment Mode', r.mode||'—'],
-    ['Transaction Reference', r.transRef||'—'],
+  // ── HEADER ──────────────────────────────────────────────
+  pdf.setFillColor(NAVY[0],NAVY[1],NAVY[2]);
+  pdf.rect(0,0,W,46,'F');
+  pdf.setFillColor(GREEN[0],GREEN[1],GREEN[2]);
+  pdf.rect(0,46,W,2.5,'F');
+
+  // Logo
+  try { pdf.addImage('data:image/png;base64,'+ICON_B64,'PNG',PL,7,32,32); } catch(e) {}
+
+  // Company block
+  var CX=PL+36;
+  pdf.setTextColor(WHITE[0],WHITE[1],WHITE[2]);
+  pdf.setFont('helvetica','bold'); pdf.setFontSize(18);
+  pdf.text(C.brand||'Go Systematic', CX, 16);
+  pdf.setFont('helvetica','normal'); pdf.setFontSize(6.5);
+  pdf.setTextColor(AMBER[0],AMBER[1],AMBER[2]);
+  pdf.text(C.tagline||'AUTOMATE. ACCELERATE. ACHIEVE. AI', CX, 22);
+  pdf.setTextColor(SLATE[0],SLATE[1],SLATE[2]); pdf.setFontSize(7.5);
+  pdf.text(C.name||'Automation Pursuits LLP', CX, 28);
+  if(C.address){
+    var aLines = pdf.splitTextToSize(C.address, 95);
+    aLines.slice(0,2).forEach(function(l,i){ pdf.text(l,CX,33+i*5); });
+  }
+  var cParts=[C.email,C.phone].filter(Boolean);
+  if(cParts.length) pdf.text(cParts.join('  |  '), CX, 44);
+
+  // Doc title — right side
+  pdf.setFont('helvetica','bold'); pdf.setFontSize(20);
+  pdf.setTextColor(GREEN[0],GREEN[1],GREEN[2]);
+  pdf.text('PAYMENT RECEIPT', PR, 18, {align:'right'});
+  pdf.setFont('helvetica','normal'); pdf.setFontSize(8.5); pdf.setTextColor(195,210,240);
+  pdf.text('# '+(r.number||''), PR, 26, {align:'right'});
+  pdf.setFontSize(7.5);
+  pdf.text('Date: '+fmtDate(r.date), PR, 32, {align:'right'});
+  if(isGstR){ pdf.setTextColor(AMBER[0],AMBER[1],AMBER[2]); pdf.text('GSTIN: '+C.gst, PR, 38, {align:'right'}); }
+  else if(C.pan){ pdf.setTextColor(160,175,210); pdf.text('PAN: '+C.pan, PR, 38, {align:'right'}); }
+
+  var y=54;
+
+  // ── AMOUNT HERO BOX ─────────────────────────────────────
+  // Large green amount display — the most important element
+  pdf.setFillColor(GREENBG[0],GREENBG[1],GREENBG[2]);
+  pdf.roundedRect(PL,y,W-2*PL,28,3,3,'F');
+  pdf.setDrawColor(GREEN[0],GREEN[1],GREEN[2]); pdf.setLineWidth(0.6);
+  pdf.roundedRect(PL,y,W-2*PL,28,3,3,'S');
+  // Green left bar
+  pdf.setFillColor(GREEN[0],GREEN[1],GREEN[2]);
+  pdf.roundedRect(PL,y,5,28,2,2,'F');
+
+  pdf.setTextColor(GREEN[0],GREEN[1],GREEN[2]);
+  pdf.setFont('helvetica','bold'); pdf.setFontSize(8);
+  pdf.text('AMOUNT RECEIVED', PL+10, y+9);
+  pdf.setFontSize(22);
+  pdf.text(fmtAmt(amount), PL+10, y+22);
+
+  // Amount in words — right side of hero box
+  pdf.setFont('helvetica','normal'); pdf.setFontSize(7.5); pdf.setTextColor(GRAY[0],GRAY[1],GRAY[2]);
+  try {
+    var words = amountInWords(amount);
+    var wLines = pdf.splitTextToSize(words, 80);
+    pdf.text('In Words:', PR-82, y+9);
+    wLines.slice(0,2).forEach(function(l,i){ pdf.text(l, PR-82, y+15+i*5); });
+  } catch(e) {}
+  y+=34;
+
+  // ── RECEIVED FROM / OUR DETAILS (two columns) ───────────
+  var HALF=(W-2*PL-5)/2;
+  var BX2=PL+HALF+5;
+  var boxH=42;
+
+  // Received From (left — blue)
+  pdf.setFillColor(LBLUE[0],LBLUE[1],LBLUE[2]);
+  pdf.roundedRect(PL,y,HALF,boxH,2,2,'F');
+  pdf.setTextColor(AMBER[0],AMBER[1],AMBER[2]); pdf.setFont('helvetica','bold'); pdf.setFontSize(7);
+  pdf.text('RECEIVED FROM', PL+4, y+7);
+  pdf.setDrawColor(AMBER[0],AMBER[1],AMBER[2]); pdf.setLineWidth(0.4);
+  pdf.line(PL+4,y+9,PL+HALF-4,y+9);
+  pdf.setTextColor(DARK[0],DARK[1],DARK[2]); pdf.setFont('helvetica','bold'); pdf.setFontSize(10.5);
+  pdf.text((r.clientName||'—').substring(0,30), PL+4, y+16);
+  pdf.setFont('helvetica','normal'); pdf.setFontSize(8); pdf.setTextColor(GRAY[0],GRAY[1],GRAY[2]);
+  if(r.invoiceRef){ pdf.text('Against Invoice: '+r.invoiceRef, PL+4, y+23); }
+  pdf.setFont('helvetica','bold'); pdf.setFontSize(9); pdf.setTextColor(GREEN[0],GREEN[1],GREEN[2]);
+  pdf.text(fmtAmt(amount), PL+4, y+33);
+  pdf.setFont('helvetica','normal'); pdf.setFontSize(7.5); pdf.setTextColor(GRAY[0],GRAY[1],GRAY[2]);
+  pdf.text('Full payment received', PL+4, y+39);
+
+  // Payment Details (right — navy)
+  pdf.setFillColor(NAVY[0],NAVY[1],NAVY[2]);
+  pdf.roundedRect(BX2,y,HALF,boxH,2,2,'F');
+  pdf.setTextColor(AMBER[0],AMBER[1],AMBER[2]); pdf.setFont('helvetica','bold'); pdf.setFontSize(7);
+  pdf.text('PAYMENT DETAILS', BX2+4, y+7);
+  pdf.setDrawColor(255,200,100); pdf.setLineWidth(0.3);
+  pdf.line(BX2+4,y+9,BX2+HALF-4,y+9);
+
+  var prows=[
+    ['Mode:',    r.mode||'—'],
+    ['Ref / UTR:',r.transRef||'—'],
+    ['Date:',    fmtDate(r.date)],
   ];
-  doc.setFontSize(8.5);
-  details.forEach(([label,val],i) => {
-    const dy = y + 15 + (i*9);
-    doc.setTextColor(...GRAY); doc.setFont('helvetica','normal'); doc.text(label + ':', ml+4, dy);
-    doc.setTextColor(...DARK); doc.setFont('helvetica','bold'); doc.text(val, ml+60, dy);
+  prows.forEach(function(row,i){
+    var ry=y+17+i*8;
+    pdf.setTextColor(SLATE[0],SLATE[1],SLATE[2]); pdf.setFont('helvetica','normal'); pdf.setFontSize(7.5);
+    pdf.text(row[0], BX2+4, ry);
+    pdf.setTextColor(WHITE[0],WHITE[1],WHITE[2]); pdf.setFont('helvetica','bold'); pdf.setFontSize(8);
+    pdf.text(row[1].substring(0,22), BX2+28, ry);
   });
-  if(r.notes) {
-    doc.setTextColor(...GRAY); doc.setFont('helvetica','normal'); doc.setFontSize(8);
-    doc.text('Notes: ' + r.notes, ml+4, y+52);
+  y+=boxH+6;
+
+  // ── BANK DETAILS (for client records) ───────────────────
+  if(C.bank && C.bank.name && C.bank.account){
+    pdf.setFillColor(LGRAY[0],LGRAY[1],LGRAY[2]);
+    pdf.roundedRect(PL,y,W-2*PL,36,2,2,'F');
+    pdf.setDrawColor(215,225,245); pdf.setLineWidth(0.3);
+    pdf.roundedRect(PL,y,W-2*PL,36,2,2,'S');
+    pdf.setTextColor(AMBER[0],AMBER[1],AMBER[2]); pdf.setFont('helvetica','bold'); pdf.setFontSize(7.5);
+    pdf.text('OUR BANK DETAILS', PL+4, y+8);
+    pdf.setFont('helvetica','normal'); pdf.setFontSize(7); pdf.setTextColor(GRAY[0],GRAY[1],GRAY[2]);
+    pdf.text('(Please use these details for future payments)', PL+44, y+8);
+    pdf.setDrawColor(AMBER[0],AMBER[1],AMBER[2]); pdf.setLineWidth(0.3);
+    pdf.line(PL+4,y+10,PR,y+10);
+
+    // Two-column bank layout
+    var bL=PL+4, bV=PL+36;
+    var b2L=PL+HALF+5, b2V=PL+HALF+36;
+    var brows2=[
+      {l:'Account Name:', v:(C.name||'').substring(0,26), x:bL, xv:bV, row:0},
+      {l:'Bank Name:',    v:(C.bank.name||'').substring(0,22), x:b2L, xv:b2V, row:0},
+      {l:'A/C Number:',   v:C.bank.account, x:bL, xv:bV, row:1},
+      {l:'IFSC Code:',    v:(C.bank.ifsc||'').toUpperCase(), x:b2L, xv:b2V, row:1},
+      {l:'Branch:',       v:(C.bank.branch||'').substring(0,22), x:bL, xv:bV, row:2},
+    ];
+    brows2.forEach(function(br){
+      var ry=y+17+br.row*7;
+      pdf.setTextColor(GRAY[0],GRAY[1],GRAY[2]); pdf.setFont('helvetica','normal'); pdf.setFontSize(7.5);
+      pdf.text(br.l, br.x, ry);
+      pdf.setTextColor(DARK[0],DARK[1],DARK[2]); pdf.setFont('helvetica','bold');
+      pdf.text(br.v, br.xv, ry);
+    });
+    y+=40;
   }
-  y += 58;
 
-  // Amount in words
-  doc.setFillColor(255,248,235); doc.roundedRect(ml, y, W-2*ml, 8, 2, 2, 'F');
-  doc.setTextColor(...AMBER); doc.setFont('helvetica','bold'); doc.setFontSize(7);
-  doc.text('Amount in Words: ', ml+4, y+5);
-  doc.setTextColor(...DARK); doc.setFont('helvetica','normal');
-  try { doc.text(amountInWords(parseFloat(r.amount)||0), ml+38, y+5); } catch(e){}
-  y += 14;
+  // ── ACKNOWLEDGEMENT BOX ──────────────────────────────────
+  pdf.setFillColor(NAVY[0],NAVY[1],NAVY[2]);
+  pdf.roundedRect(PL,y,W-2*PL,18,2,2,'F');
+  pdf.setTextColor(WHITE[0],WHITE[1],WHITE[2]); pdf.setFont('helvetica','bold'); pdf.setFontSize(8.5);
+  pdf.text('ACKNOWLEDGEMENT', PL+4, y+8);
+  pdf.setFont('helvetica','normal'); pdf.setFontSize(7.5); pdf.setTextColor(SLATE[0],SLATE[1],SLATE[2]);
+  var ack = 'We acknowledge receipt of '+fmtAmt(amount)+' from '+(r.clientName||'the client')+
+            ' via '+(r.mode||'transfer')+
+            (r.transRef?' (Ref: '+r.transRef+')':'')+
+            '. This receipt is valid proof of payment.';
+  var ackLines = pdf.splitTextToSize(ack, W-2*PL-8);
+  ackLines.slice(0,2).forEach(function(l,i){ pdf.text(l,PL+4,y+13+i*4.5); });
+  y+=22;
 
-  // Bank details
-  if(C.bank && C.bank.name) {
-    doc.setFillColor(245,248,253); doc.roundedRect(ml, y, W-2*ml, 32, 3, 3, 'F');
-    doc.setTextColor(...AMBER); doc.setFont('helvetica','bold'); doc.setFontSize(7);
-    doc.text('OUR BANK DETAILS (for your records)', ml+4, y+7);
-    doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(...DARK);
-    doc.text('Account Name: ' + (C.name||'Automation Pursuits LLP'), ml+4, y+14);
-    doc.text('Bank: ' + C.bank.name + '   |   A/C: ' + C.bank.account, ml+4, y+20);
-    doc.text('IFSC: ' + C.bank.ifsc + (C.bank.branch?'   |   Branch: '+C.bank.branch:''), ml+4, y+26);
+  // ── NOTES (if any) ──────────────────────────────────────
+  if(r.notes && !r.notes.startsWith('Auto-generated')){
+    var noteLines = pdf.splitTextToSize(r.notes, W-2*PL-22);
+    var noteH = Math.max(10, noteLines.length*5+8);
+    pdf.setFillColor(LGRAY[0],LGRAY[1],LGRAY[2]);
+    pdf.roundedRect(PL,y,W-2*PL,noteH,2,2,'F');
+    pdf.setTextColor(AMBER[0],AMBER[1],AMBER[2]); pdf.setFont('helvetica','bold'); pdf.setFontSize(7.5);
+    pdf.text('Notes:', PL+4, y+7);
+    pdf.setTextColor(50,65,100); pdf.setFont('helvetica','normal'); pdf.setFontSize(7.8);
+    noteLines.slice(0,3).forEach(function(l,i){ pdf.text(l,PL+22,y+7+i*5); });
+    y+=noteH+4;
   }
 
-  // Footer
-  doc.setFillColor(...NAVY); doc.rect(0,276,W,21,'F');
-  doc.setFillColor(...AMBER); doc.rect(0,276,W,1.5,'F');
-  doc.setTextColor(...WHITE); doc.setFont('helvetica','bold'); doc.setFontSize(8);
-  doc.text(C.brand||'Go Systematic', ml, 284);
-  doc.setFont('helvetica','normal'); doc.setFontSize(7); doc.setTextColor(170,180,210);
-  doc.text(C.name||'Automation Pursuits LLP', ml, 289);
-  doc.setTextColor(140,155,190);
-  doc.text('This is a computer-generated receipt', W/2, 284, {align:'center'});
-  doc.text('No signature required', W/2, 289, {align:'center'});
-  const gstRealRec = gstReal(C);
-  if(gstReal(C)) { doc.setTextColor(170,180,210); doc.text('GSTIN: '+C.gst, mr, 284, {align:'right'}); }
-  if(C.pan) { doc.setTextColor(170,180,210); doc.text('PAN: '+C.pan, mr, 289, {align:'right'}); }
+  // ── FOOTER ──────────────────────────────────────────────
+  var FY=277;
+  pdf.setFillColor(NAVY[0],NAVY[1],NAVY[2]); pdf.rect(0,FY,W,20,'F');
+  pdf.setFillColor(GREEN[0],GREEN[1],GREEN[2]); pdf.rect(0,FY,W,2,'F');
 
-  doc.save('Receipt_' + r.number + '.pdf');
+  pdf.setTextColor(WHITE[0],WHITE[1],WHITE[2]); pdf.setFont('helvetica','bold'); pdf.setFontSize(9);
+  pdf.text(C.brand||'Go Systematic', PL, FY+9);
+  pdf.setFont('helvetica','normal'); pdf.setFontSize(6.5); pdf.setTextColor(SLATE[0],SLATE[1],SLATE[2]);
+  pdf.text(C.name||'Automation Pursuits LLP', PL, FY+15);
+
+  pdf.setTextColor(140,158,195); pdf.setFontSize(7);
+  pdf.text('This is a computer-generated payment receipt — No physical signature required', W/2, FY+9, {align:'center'});
+  if(C.email) pdf.text(C.email, W/2, FY+15, {align:'center'});
+
+  pdf.setTextColor(SLATE[0],SLATE[1],SLATE[2]); pdf.setFont('helvetica','normal'); pdf.setFontSize(7);
+  if(isGstR) pdf.text('GSTIN: '+C.gst, PR, FY+9, {align:'right'});
+  if(C.pan) pdf.text('PAN: '+C.pan, PR, isGstR?FY+15:FY+9, {align:'right'});
+
+  pdf.save('Receipt_'+(r.number||'REC')+'.pdf');
 }
 
 function exportAllPDF(invoices, company) {
