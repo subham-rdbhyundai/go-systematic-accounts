@@ -55,19 +55,7 @@
   ],
   "clients": [],
   "expenses": [],
-  "receipts": [
-    {
-      "id": "REC-MR32OPMO",
-      "number": "REC-MR32MVKS",
-      "date": "2026-07-02",
-      "clientName": "STRONG WINGS LLP",
-      "invoiceRef": "GS-2026-2027-07-001",
-      "amount": 25000,
-      "mode": "NEFT",
-      "transRef": "IN42618352372132",
-      "notes": "Auto-generated from Invoice cum Receipt ICR-MR32OPMO"
-    }
-  ],
+  "receipts": [],
   "companyInfo": {
     "name": "Automation Pursuits LLP",
     "brand": "Go Systematic",
@@ -84,5 +72,5 @@
       "branch": "Gurusaday Road Branch"
     }
   },
-  "sha": "d30e09ad513e9ba305e0a0e87b2b78960ec16c20"
+  "sha": "06d81003f6b306ced88cac276fdf22ad59366a5e"
 }
