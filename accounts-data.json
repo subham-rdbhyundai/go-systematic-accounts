@@ -5,7 +5,7 @@
       "number": "GS-2026-2027-07-001-R",
       "date": "2026-07-02",
       "dueDate": "2026-07-30",
-      "status": "Paid",
+      "status": "Sent",
       "clientName": "STRONG WINGS LLP",
       "clientAddress": "Plot-P68-71, D-2 block MIDC, KSB Chowk, Near Shiv Suzuki, Chinchwad-411019",
       "clientGST": "27AELFS3010F1Z9",
@@ -72,5 +72,5 @@
       "branch": "Gurusaday Road Branch"
     }
   },
-  "sha": "06d81003f6b306ced88cac276fdf22ad59366a5e"
+  "sha": "292a0c7f87df001b8fb79fff17a3865dbd63bd5f"
 }
