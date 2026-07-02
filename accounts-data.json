@@ -51,51 +51,6 @@
       "receiptNumber": "REC-MR32MVKS",
       "paymentNotes": "Received with thanks from Strong Wings LLP. Thank You for your business!",
       "convertedFrom": "INV-MR2CNSW3"
-    },
-    {
-      "type": "Proforma Invoice",
-      "number": "GS-2026-2027-07-001",
-      "date": "2026-07-01",
-      "dueDate": "2026-07-30",
-      "status": "Paid",
-      "clientName": "STRONG WINGS LLP",
-      "clientAddress": "Plot-P68-71, D-2 block MIDC, KSB Chowk, Near Shiv Suzuki, Chinchwad-411019",
-      "clientGST": "27AELFS3010F1Z9",
-      "clientEmail": "strongwingshonda5@gmail.com",
-      "items": [
-        {
-          "desc": "Automation Consultancy",
-          "hsn": "",
-          "qty": "125",
-          "unit": "Hrs",
-          "rate": "200",
-          "gst": "0"
-        }
-      ],
-      "discount": 0,
-      "notes": "All minor changes like change in prices, setup, placeholders to be complimentary unless major changes like total design changes are requested until 30th June 2027",
-      "terms": "Payment due within 30 days.\nPlease include invoice number in payment reference.",
-      "placeOfSupply": "PUNE, MAHARASHTRA",
-      "reverseCharge": false,
-      "subtotal": 25000,
-      "gstTotal": 0,
-      "discAmt": 0,
-      "grand": 25000,
-      "lines": [
-        {
-          "desc": "Automation Consultancy",
-          "hsn": "",
-          "qty": "125",
-          "unit": "Hrs",
-          "rate": "200",
-          "gst": "0",
-          "subtotal": 25000,
-          "gstAmt": 0,
-          "total": 25000
-        }
-      ],
-      "id": "INV-MR2CNSW3",
-      "convertedTo": "ICR-MR32OPMO"
     }
   ],
   "clients": [],
@@ -129,5 +84,5 @@
       "branch": "Gurusaday Road Branch"
     }
   },
-  "sha": "53f74d998e2c4c035b64e86a42f71d8752cb15cd"
+  "sha": "d30e09ad513e9ba305e0a0e87b2b78960ec16c20"
 }
