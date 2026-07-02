@@ -944,6 +944,31 @@ function Invoices({ data, persist, company }) {
     setTimeout(() => exportICRPDF(newDoc, icr, company), 400);
   };
 
+  const reCreateReceipt = (icrDoc) => {
+    // Re-generate a receipt record from an existing ICR document
+    const existing = (data.receipts||[]).find(r=>r.invoiceRef===icrDoc.sourceNumber||r.invoiceRef===icrDoc.number);
+    if(existing) {
+      if(!confirm('A receipt for this ICR already exists. Download the existing one?')) return;
+      exportReceiptPDF(existing, company);
+      return;
+    }
+    // Create a new receipt record
+    const rec = {
+      id: genId('REC'),
+      number: 'REC-' + Date.now().toString(36).toUpperCase(),
+      date: icrDoc.paymentDate || icrDoc.date || today(),
+      clientName: icrDoc.clientName,
+      invoiceRef: icrDoc.sourceNumber || icrDoc.number,
+      amount: icrDoc.grand,
+      mode: icrDoc.paymentMode || 'Bank Transfer',
+      transRef: icrDoc.transRef || '',
+      notes: 'Re-generated from ICR ' + icrDoc.number
+    };
+    const updated = { ...data, receipts: [...(data.receipts||[]), rec] };
+    persist(updated);
+    setTimeout(() => exportReceiptPDF(rec, company), 400);
+  };
+
   return (
     <div>
       <div className="flex-between" style={{marginBottom:20}}>
@@ -993,11 +1018,22 @@ function Invoices({ data, persist, company }) {
                           <button className="btn btn-ghost btn-sm" onClick={()=>setPreview(inv)} title="Preview">👁</button>
                           <button className="btn btn-ghost btn-sm" onClick={()=>{setEditing(inv);setShowForm(true);}} title="Edit">✏️</button>
                           <button className="btn btn-ghost btn-sm" onClick={()=>exportInvoicePDF(inv, company)} title="PDF">📄</button>
-                          {(inv.type==='Proforma Invoice'||inv.type==='Tax Invoice'||inv.type==='Quotation') && inv.type!=='Invoice cum Receipt' && (() => {
-                            const hasICR = invoices.some(x=>x.convertedFrom===inv.id);
-                            return hasICR
-                              ? <span title="ICR already generated" style={{fontSize:11,color:'var(--success)',padding:'0 4px',fontWeight:600}}>✓ ICR</span>
-                              : <button className="btn btn-ghost btn-sm" onClick={()=>setShowICR(inv)} title="Convert to Invoice cum Receipt" style={{color:'var(--success)'}}>🔄</button>;
+                          {(() => {
+                            if(inv.type==='Invoice cum Receipt') {
+                              // On ICR row: show re-download ICR PDF + re-create receipt
+                              return <span style={{display:'flex',gap:4}}>
+                                <button className="btn btn-ghost btn-sm" onClick={()=>exportICRPDF(inv,inv,company)} title="Download ICR PDF" style={{color:'var(--success)',fontSize:13}}>📋</button>
+                                <button className="btn btn-ghost btn-sm" onClick={()=>reCreateReceipt(inv)} title="Re-generate Payment Receipt" style={{color:'var(--blue)',fontSize:13}}>🧾</button>
+                              </span>;
+                            }
+                            if(inv.type==='Proforma Invoice'||inv.type==='Tax Invoice'||inv.type==='Quotation') {
+                              const linkedICR = invoices.find(x=>x.convertedFrom===inv.id);
+                              if(linkedICR) {
+                                return <span title={'ICR: '+linkedICR.number} style={{fontSize:11,color:'var(--success)',padding:'0 4px',fontWeight:600}}>✓ ICR</span>;
+                              }
+                              return <button className="btn btn-ghost btn-sm" onClick={()=>setShowICR(inv)} title="Convert to Invoice cum Receipt" style={{color:'var(--success)',fontSize:16}}>🔄</button>;
+                            }
+                            return null;
                           })()}
                           <button className="btn btn-ghost btn-sm" onClick={()=>del(inv.id)} title="Delete">🗑</button>
                         </div>
