@@ -15,7 +15,6 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
 <style>
@@ -728,10 +727,10 @@ const PIN_SESS  = 'gs_pin_unlocked';
 const LOGO_IMG  = `data:image/jpeg;base64,${LOGO_B64}`;
 
 function hashPin(pin) {
-  // Simple deterministic hash — good enough for local PIN
-  var h = 0;
-  for(var i=0;i<pin.length;i++){ h = (Math.imul(31,h)+pin.charCodeAt(i))|0; }
-  return String(h);
+  // Simple hash for PIN — browser compatible
+  var h = 5381;
+  for(var i=0;i<pin.length;i++){ h = ((h<<5)+h)+pin.charCodeAt(i); h = h&h; }
+  return String(Math.abs(h));
 }
 
 function PinLock({ onUnlock }) {
@@ -765,7 +764,7 @@ function PinLock({ onUnlock }) {
     } else if(phase === 'confirm') {
       if(pin === first) {
         localStorage.setItem(PIN_KEY, hashPin(pin));
-        sessionStorage.setItem(PIN_SESS, '1');
+        sessionStorage.setItem(PIN_SESS, String(Date.now()));
         onUnlock();
       } else {
         triggerError("PINs don't match. Try again.");
@@ -773,7 +772,7 @@ function PinLock({ onUnlock }) {
       }
     } else if(phase === 'enter') {
       if(hashPin(pin) === storedHash) {
-        sessionStorage.setItem(PIN_SESS, '1');
+        sessionStorage.setItem(PIN_SESS, String(Date.now()));
         onUnlock();
       } else {
         triggerError('Incorrect PIN. Try again.');
@@ -789,7 +788,7 @@ function PinLock({ onUnlock }) {
     } else if(phase === 'change_confirm') {
       if(pin === first) {
         localStorage.setItem(PIN_KEY, hashPin(pin));
-        sessionStorage.setItem(PIN_SESS, '1');
+        sessionStorage.setItem(PIN_SESS, String(Date.now()));
         onUnlock();
       } else {
         triggerError("PINs don't match."); setPhase('change_new'); setFirst('');
@@ -882,7 +881,7 @@ function PinSettings() {
               ✅ Your dashboard is PIN-protected. A 4-digit PIN is required every session.
             </div>
             <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>
-              <button className="btn btn-outline" onClick={()=>{ sessionStorage.removeItem(PIN_SESS); window.location.reload(); }}>
+              <button className="btn btn-outline" onClick={()=>{ sessionStorage.removeItem(PIN_SESS); window.location.reload(); }} >
                 🔐 Lock Now
               </button>
               <button className="btn btn-outline" onClick={removePin}>
@@ -908,8 +907,17 @@ function PinSettings() {
 
 function App() {
   const [unlocked, setUnlocked] = useState(()=>{
-    // Already unlocked this session, or no PIN set
-    return !!sessionStorage.getItem(PIN_SESS) || !localStorage.getItem(PIN_KEY);
+    const hasPIN = !!localStorage.getItem(PIN_KEY);
+    if(!hasPIN) return true; // No PIN set — always unlocked
+    // Check session unlock (with timestamp — valid for 8 hours)
+    try {
+      const sess = sessionStorage.getItem(PIN_SESS);
+      if(sess) {
+        const t = parseInt(sess);
+        if(Date.now() - t < 8*60*60*1000) return true; // unlocked within 8h
+      }
+    } catch(e){}
+    return false;
   });
   const [page, setPage] = useState('dashboard');
   const [data, setData] = useState(EMPTY_DATA);
@@ -1232,8 +1240,6 @@ function Invoices({ data, persist, company, fyFilter }) {
   }).sort((a,b)=>new Date(b.date)-new Date(a.date));
 
   const [showICR, setShowICR] = useState(null);
-  const [emailTarget, setEmailTarget] = useState(null); // invoice being converted
-
   const save = (doc) => {
     const inv = { ...doc, id: doc.id||genId('INV'), date: doc.date||today() };
     const updated = doc.id ? invoices.map(i=>i.id===doc.id?inv:i) : [inv, ...invoices];
@@ -1306,12 +1312,19 @@ function Invoices({ data, persist, company, fyFilter }) {
 
   return (
     <div>
-      <div className="flex-between" style={{marginBottom:20}}>
+      <div className="flex-between" style={{marginBottom:12}}>
         <div>
           <div className="section-title">Invoices & Documents</div>
-          <div className="section-sub">Manage all your financial documents</div>
+          <div className="section-sub">Manage all your financial documents{fyFilter&&fyFilter!=='All'?' — '+fyFilter:''}</div>
         </div>
         <button className="btn btn-primary" onClick={()=>{setEditing(null);setShowForm(true);}}>+ New Document</button>
+      </div>
+      <div className="tabs" style={{marginBottom:8}}>
+        {ALL_FYS.map(fy=>(
+          <button key={fy} className={`tab-btn ${(fyFilter||'All')===fy?'active':''}`} onClick={()=>{}}>
+            {fy}
+          </button>
+        ))}
       </div>
 
       <div className="search-bar">
@@ -1353,7 +1366,6 @@ function Invoices({ data, persist, company, fyFilter }) {
                           <button className="btn btn-ghost btn-sm" onClick={()=>setPreview(inv)} title="Preview">👁</button>
                           <button className="btn btn-ghost btn-sm" onClick={()=>{setEditing(inv);setShowForm(true);}} title="Edit">✏️</button>
                           <button className="btn btn-ghost btn-sm" onClick={()=>exportInvoicePDF(inv, company)} title="PDF">📄</button>
-                          <button className="btn btn-ghost btn-sm" onClick={()=>setEmailTarget(inv)} title="Email Invoice" style={{color:'var(--blue)'}}>✉️</button>
                           {(() => {
                             if(inv.type==='Invoice cum Receipt') {
                               // On ICR row: show re-download ICR PDF + re-create receipt
@@ -1397,7 +1409,6 @@ function Invoices({ data, persist, company, fyFilter }) {
       {showForm && <InvoiceForm initial={editing} clients={data.clients||[]} onSave={save} onClose={()=>{setShowForm(false);setEditing(null);}} company={company} />}
       {preview && <InvoicePreviewModal inv={preview} onClose={()=>setPreview(null)} company={company} />}
       {showICR && <ICRModal inv={showICR} onSave={saveICR} onClose={()=>setShowICR(null)} company={company} />}
-      {emailTarget && <EmailModal inv={emailTarget} company={company} onClose={()=>setEmailTarget(null)} />}
     </div>
   );
 }
@@ -1709,7 +1720,8 @@ function InvoiceDocument({ inv, company }) {
 function Receipts({ data, persist, company, fyFilter }) {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
-  const receipts = data.receipts || [];
+  const allRec = data.receipts || [];
+  const receipts = (fyFilter&&fyFilter!=='All') ? allRec.filter(r=>getFY(r.date)===fyFilter) : allRec;
 
   const save = (r) => {
     const rec = { ...r, id: r.id||genId('REC'), date: r.date||today() };
@@ -1721,12 +1733,19 @@ function Receipts({ data, persist, company, fyFilter }) {
 
   return (
     <div>
-      <div className="flex-between" style={{marginBottom:20}}>
+      <div className="flex-between" style={{marginBottom:12}}>
         <div>
           <div className="section-title">Payment Receipts</div>
-          <div className="section-sub">Track all incoming payments</div>
+          <div className="section-sub">Track all incoming payments{fyFilter&&fyFilter!=='All'?' — '+fyFilter:''}</div>
         </div>
         <button className="btn btn-primary" onClick={()=>{setEditing(null);setShowForm(true);}}>+ New Receipt</button>
+      </div>
+      <div className="tabs" style={{marginBottom:16}}>
+        {ALL_FYS.map(fy=>(
+          <button key={fy} className={`tab-btn ${(fyFilter||'All')===fy?'active':''}`} onClick={()=>{}}>
+            {fy}
+          </button>
+        ))}
       </div>
       <div className="card">
         <div className="table-wrap">
@@ -2558,112 +2577,6 @@ function PWAInstallPrompt() {
   );
 }
 
-// ─── EMAIL MODAL ────────────────────────────────────────────
-function EmailModal({ inv, company, onClose }) {
-  const C = company || DEFAULT_COMPANY;
-  const [cfg, setCfg] = useState(() => {
-    const s = localStorage.getItem('gs_emailjs_config');
-    return s ? JSON.parse(s) : { serviceId:'', templateId:'', publicKey:'', configured:false };
-  });
-  const [form, setForm] = useState({
-    to: inv.clientEmail || '',
-    subject: `${inv.type} #${inv.number} from ${C.brand||'Go Systematic'}`,
-    message: `Dear ${inv.clientName||'Client'},
-
-Please find attached ${inv.type} #${inv.number} for ${fmt(inv.grand)}.
-
-For any queries, please contact us at ${C.email||''}.
-
-Warm regards,
-${C.brand||'Go Systematic'}
-${C.name||''}`,
-  });
-  const [sending, setSending] = useState(false);
-  const [sent, setSent] = useState(false);
-  const [showCfg, setShowCfg] = useState(!cfg.configured);
-  const set = (k,v) => setForm(x=>({...x,[k]:v}));
-  const setCfgField = (k,v) => setCfg(x=>({...x,[k]:v}));
-
-  const saveCfg = () => {
-    const c = {...cfg, configured:true};
-    localStorage.setItem('gs_emailjs_config', JSON.stringify(c));
-    setCfg(c); setShowCfg(false);
-  };
-
-  const sendEmail = async () => {
-    if(!form.to){ alert('Please enter recipient email'); return; }
-    if(!cfg.configured){ alert('Please configure EmailJS first'); setShowCfg(true); return; }
-    setSending(true);
-    try {
-      await emailjs.send(cfg.serviceId, cfg.templateId, {
-        to_email: form.to, to_name: inv.clientName||'Client',
-        from_name: C.brand||'Go Systematic',
-        subject: form.subject, message: form.message,
-        invoice_number: inv.number, amount: fmt(inv.grand),
-        company_name: C.name, company_email: C.email||'',
-      }, cfg.publicKey);
-      setSent(true);
-    } catch(err) {
-      alert('Failed to send: '+(err.text||err.message||'Unknown error'));
-    }
-    setSending(false);
-  };
-
-  return (
-    <div className="modal-backdrop">
-      <div className="modal" style={{maxWidth:560}}>
-        <div className="modal-header">
-          <h2>✉️ Email {inv.type}</h2>
-          <button className="modal-close" onClick={onClose}>✕</button>
-        </div>
-        <div className="modal-body">
-          {sent ? (
-            <div className="alert alert-success" style={{textAlign:'center',padding:24}}>
-              <div style={{fontSize:32,marginBottom:8}}>✅</div>
-              <div style={{fontSize:15,fontWeight:600}}>Email sent successfully!</div>
-              <div style={{fontSize:13,color:'var(--text-muted)',marginTop:4}}>Sent to {form.to}</div>
-            </div>
-          ) : (
-            <>
-              {showCfg ? (
-                <div>
-                  <div className="alert alert-info" style={{marginBottom:16}}>
-                    ℹ️ EmailJS is a free service to send emails from browser apps. 
-                    <a href="https://www.emailjs.com" target="_blank" rel="noreferrer" style={{marginLeft:4,color:'var(--blue)'}}>Set up free account →</a>
-                  </div>
-                  <div className="form-group"><label className="form-label">EmailJS Service ID</label><input className="form-control" value={cfg.serviceId} onChange={e=>setCfgField('serviceId',e.target.value)} placeholder="service_xxxxxxx"/></div>
-                  <div className="form-group"><label className="form-label">Template ID</label><input className="form-control" value={cfg.templateId} onChange={e=>setCfgField('templateId',e.target.value)} placeholder="template_xxxxxxx"/></div>
-                  <div className="form-group"><label className="form-label">Public Key</label><input className="form-control" value={cfg.publicKey} onChange={e=>setCfgField('publicKey',e.target.value)} placeholder="Your public key"/></div>
-                  <button className="btn btn-primary" onClick={saveCfg}>💾 Save & Continue</button>
-                </div>
-              ) : (
-                <div>
-                  <div style={{display:'flex',justifyContent:'flex-end',marginBottom:8}}>
-                    <button className="btn btn-ghost btn-sm" onClick={()=>setShowCfg(true)}>⚙️ EmailJS Settings</button>
-                  </div>
-                  <div className="form-group"><label className="form-label">To (Email)</label><input className="form-control" value={form.to} onChange={e=>set('to',e.target.value)} placeholder="client@email.com" type="email"/></div>
-                  <div className="form-group"><label className="form-label">Subject</label><input className="form-control" value={form.subject} onChange={e=>set('subject',e.target.value)}/></div>
-                  <div className="form-group"><label className="form-label">Message</label><textarea className="form-control" rows={6} value={form.message} onChange={e=>set('message',e.target.value)}/></div>
-                  <div className="alert alert-warning">📎 Note: The PDF will be downloaded separately. Attach it manually to the email, or use an EmailJS template that generates the attachment.</div>
-                </div>
-              )}
-            </>
-          )}
-        </div>
-        {!sent && !showCfg && (
-          <div className="modal-footer">
-            <button className="btn btn-outline" onClick={onClose}>Cancel</button>
-            <button className="btn btn-ghost btn-sm" onClick={()=>exportInvoicePDF(inv,company)}>📄 Download PDF first</button>
-            <button className="btn btn-primary" onClick={sendEmail} disabled={sending}>
-              {sending?'Sending…':'✉️ Send Email'}
-            </button>
-          </div>
-        )}
-        {sent && <div className="modal-footer"><button className="btn btn-primary" onClick={onClose}>Done</button></div>}
-      </div>
-    </div>
-  );
-}
 
 // ─── CLIENT STATEMENT MODAL ──────────────────────────────────
 function ClientStatementModal({ data, clients, onClose, fyFilter }) {
