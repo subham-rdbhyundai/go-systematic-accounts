@@ -49,7 +49,7 @@
       "paymentMode": "NEFT",
       "transRef": "HDFCH01099002658",
       "receiptNumber": "REC-MR4MVR9T",
-      "paymentNotes": "\"Payment received â¹29,400 against Invoice for â¹30,000. TDS @ 2% (â¹600) deducted under Section 194C / 194J [use whichever applies] by Zillion Analytics Pvt Ltd. TDS certificate (Form 16A) to be provided by the deductor.",
+      "paymentNotes": "\"Payment received Ã¢ÂÂ¹29,400 against Invoice for Ã¢ÂÂ¹30,000. TDS @ 2% (Ã¢ÂÂ¹600) deducted under Section 194C / 194J [use whichever applies] by Zillion Analytics Pvt Ltd. TDS certificate (Form 16A) to be provided by the deductor.",
       "convertedFrom": "INV-MR3CUA6K"
     },
     {
@@ -163,6 +163,17 @@
       "mode": "NEFT",
       "transRef": "HDFCH01099002658",
       "notes": "Auto-generated from Invoice cum Receipt ICR-MR4N2ALG"
+    },
+    {
+      "id": "REC-MR4Q4WF4",
+      "number": "REC-MR4Q4WF4",
+      "date": "2026-07-02",
+      "clientName": "STRONG WINGS LLP",
+      "invoiceRef": "GS-2026-2027-07-001",
+      "amount": 25000,
+      "mode": "NEFT",
+      "transRef": "IN42618352372132",
+      "notes": "Re-generated from ICR GS-2026-2027-07-001-R"
     }
   ],
   "companyInfo": {
@@ -181,5 +192,5 @@
       "branch": "Gurusaday Road Branch"
     }
   },
-  "sha": "be43091345f5609ae25aecb389a92b22f1aec7ac"
+  "sha": "217aaba1e0c516c6f33bfdea54f76f1db23706e0"
 }
