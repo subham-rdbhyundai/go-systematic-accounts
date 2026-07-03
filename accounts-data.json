@@ -49,7 +49,7 @@
       "paymentMode": "NEFT",
       "transRef": "HDFCH01099002658",
       "receiptNumber": "REC-MR4MVR9T",
-      "paymentNotes": "\"Payment received ₹29,400 against Invoice for ₹30,000. TDS @ 2% (₹600) deducted under Section 194C / 194J [use whichever applies] by Zillion Analytics Pvt Ltd. TDS certificate (Form 16A) to be provided by the deductor.",
+      "paymentNotes": "\"Payment received â¹29,400 against Invoice for â¹30,000. TDS @ 2% (â¹600) deducted under Section 194C / 194J [use whichever applies] by Zillion Analytics Pvt Ltd. TDS certificate (Form 16A) to be provided by the deductor.",
       "convertedFrom": "INV-MR3CUA6K"
     },
     {
@@ -57,7 +57,7 @@
       "number": "GS-2026-2027-07-002",
       "date": "2026-07-02",
       "dueDate": "2026-07-30",
-      "status": "Paid",
+      "status": "Sent",
       "clientName": "Zillion Analytics Pvt Ltd ",
       "clientAddress": "1003, 10th Floor, Emaar Collonade, Golf Course Extn. road, Gurgaon, Haryana 122102",
       "clientGST": "06AAACZ9796M1ZB",
@@ -181,5 +181,5 @@
       "branch": "Gurusaday Road Branch"
     }
   },
-  "sha": "5f118c65f9c7d95c8391b30d1064d542eb65ec56"
+  "sha": "be43091345f5609ae25aecb389a92b22f1aec7ac"
 }
