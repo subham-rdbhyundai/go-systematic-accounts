@@ -4,10 +4,18 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Go Systematic — Accounts Dashboard</title>
+<meta name="description" content="Go Systematic Accounts — Invoices, Receipts, Expenses"/>
+<meta name="theme-color" content="#0D1A3A"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="GS Accounts"/>
+<link rel="apple-touch-icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="/>
+<link rel="manifest" href="manifest.json"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
 <style>
@@ -527,9 +535,72 @@
   }
   @media (max-width: 640px) {
     .menu-toggle { display: flex; align-items: center; }
-    /* Add bottom padding to main content so bottom nav doesn't cover it */
     .content { padding-bottom: 80px; }
   }
+
+  /* ── PIN LOCK SCREEN ── */
+  .pin-screen {
+    position: fixed; inset: 0; z-index: 9999;
+    background: var(--navy-dark);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  .pin-logo {
+    margin-bottom: 28px; text-align: center;
+  }
+  .pin-logo img { height: 56px; margin-bottom: 12px; display: block; margin-left: auto; margin-right: auto; }
+  .pin-logo .brand { font-family:'Rajdhani',sans-serif; font-size:26px; font-weight:700; color:white; }
+  .pin-logo .sub { font-size:10px; letter-spacing:2px; color:var(--amber); text-transform:uppercase; margin-top:2px; }
+  .pin-card {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 16px;
+    padding: 28px 32px;
+    width: 100%; max-width: 340px;
+    backdrop-filter: blur(10px);
+  }
+  .pin-title { font-size:15px; font-weight:600; color:white; text-align:center; margin-bottom:6px; }
+  .pin-sub { font-size:12px; color:rgba(255,255,255,0.4); text-align:center; margin-bottom:24px; }
+  .pin-dots {
+    display: flex; justify-content: center; gap: 14px; margin-bottom: 24px;
+  }
+  .pin-dot {
+    width: 14px; height: 14px; border-radius: 50%;
+    border: 2px solid rgba(255,255,255,0.25);
+    transition: all 0.15s;
+  }
+  .pin-dot.filled { background: var(--amber); border-color: var(--amber); transform: scale(1.15); }
+  .pin-dot.error { background: var(--danger); border-color: var(--danger); animation: shake 0.4s; }
+  @keyframes shake {
+    0%,100%{transform:translateX(0)}
+    20%,60%{transform:translateX(-6px)}
+    40%,80%{transform:translateX(6px)}
+  }
+  .pin-grid {
+    display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; margin-bottom: 12px;
+  }
+  .pin-btn {
+    height: 58px; border: none; border-radius: 10px;
+    background: rgba(255,255,255,0.07);
+    color: white; font-size: 20px; font-weight: 600;
+    font-family: 'Rajdhani',sans-serif;
+    cursor: pointer; transition: all 0.12s;
+    display: flex; align-items: center; justify-content: center;
+    user-select: none; -webkit-tap-highlight-color: transparent;
+  }
+  .pin-btn:hover { background: rgba(255,255,255,0.14); }
+  .pin-btn:active { background: rgba(188,113,31,0.3); transform: scale(0.95); }
+  .pin-btn.del { font-size:18px; color:rgba(255,255,255,0.5); }
+  .pin-btn.zero { grid-column: 2; }
+  .pin-error { text-align:center; color:var(--danger); font-size:12px; margin-top:8px; min-height:16px; }
+  .pin-setup-hint { text-align:center; color:rgba(255,255,255,0.35); font-size:11px; margin-top:12px; }
+  .pin-forgot { 
+    text-align:center; margin-top:14px;
+    font-size:11px; color:rgba(255,255,255,0.3);
+    cursor:pointer; text-decoration:underline;
+  }
+  .pin-forgot:hover { color:rgba(255,255,255,0.6); }
 </style>
 </head>
 <body>
@@ -639,12 +710,212 @@ const calcDoc = (items, discount=0) => {
 // ─── INITIAL DATA ───
 const EMPTY_DATA = { invoices: [], clients: [], expenses: [], receipts: [], companyInfo: null, sha: null };
 
+// Financial year helper
+function getFY(dateStr) {
+  if(!dateStr) return 'FY26-27';
+  var d = new Date(dateStr);
+  var y = d.getFullYear(), m = d.getMonth();
+  var startY = m >= 3 ? y : y-1;
+  return 'FY'+(String(startY).slice(2))+'-'+(String(startY+1).slice(2));
+}
+function currentFY() { return getFY(new Date().toISOString()); }
+const ALL_FYS = ['All','FY24-25','FY25-26','FY26-27','FY27-28'];
+
 // ─── MAIN APP ───
+// ─── PIN LOCK ────────────────────────────────────────────────
+const PIN_KEY   = 'gs_pin_hash';
+const PIN_SESS  = 'gs_pin_unlocked';
+const LOGO_IMG  = `data:image/jpeg;base64,${LOGO_B64}`;
+
+function hashPin(pin) {
+  // Simple deterministic hash — good enough for local PIN
+  var h = 0;
+  for(var i=0;i<pin.length;i++){ h = (Math.imul(31,h)+pin.charCodeAt(i))|0; }
+  return String(h);
+}
+
+function PinLock({ onUnlock }) {
+  const storedHash  = localStorage.getItem(PIN_KEY);
+  const isSetup     = !storedHash;
+  const [phase, setPhase]   = useState(isSetup ? 'setup' : 'enter');
+  // phase: 'setup' | 'confirm' | 'enter' | 'change_old' | 'change_new' | 'change_confirm'
+  const [digits, setDigits] = useState([]);
+  const [first,  setFirst]  = useState('');   // stores first entry during setup/confirm
+  const [error,  setError]  = useState('');
+  const [shake,  setShake]  = useState(false);
+  const PIN_LEN = 4;
+
+  const triggerError = (msg) => {
+    setError(msg); setShake(true);
+    setTimeout(()=>{ setDigits([]); setShake(false); setError(''); }, 1000);
+  };
+
+  const addDigit = (d) => {
+    if(digits.length >= PIN_LEN) return;
+    const next = [...digits, d];
+    setDigits(next);
+    if(next.length === PIN_LEN) {
+      setTimeout(()=>handleComplete(next.join('')), 120);
+    }
+  };
+
+  const handleComplete = (pin) => {
+    if(phase === 'setup') {
+      setFirst(pin); setDigits([]); setPhase('confirm');
+    } else if(phase === 'confirm') {
+      if(pin === first) {
+        localStorage.setItem(PIN_KEY, hashPin(pin));
+        sessionStorage.setItem(PIN_SESS, '1');
+        onUnlock();
+      } else {
+        triggerError("PINs don't match. Try again.");
+        setPhase('setup'); setFirst('');
+      }
+    } else if(phase === 'enter') {
+      if(hashPin(pin) === storedHash) {
+        sessionStorage.setItem(PIN_SESS, '1');
+        onUnlock();
+      } else {
+        triggerError('Incorrect PIN. Try again.');
+      }
+    } else if(phase === 'change_old') {
+      if(hashPin(pin) === storedHash) {
+        setDigits([]); setPhase('change_new');
+      } else {
+        triggerError('Incorrect current PIN.');
+      }
+    } else if(phase === 'change_new') {
+      setFirst(pin); setDigits([]); setPhase('change_confirm');
+    } else if(phase === 'change_confirm') {
+      if(pin === first) {
+        localStorage.setItem(PIN_KEY, hashPin(pin));
+        sessionStorage.setItem(PIN_SESS, '1');
+        onUnlock();
+      } else {
+        triggerError("PINs don't match."); setPhase('change_new'); setFirst('');
+      }
+    }
+  };
+
+  const del = () => setDigits(d=>d.slice(0,-1));
+
+  const forgotPin = () => {
+    if(confirm('This will clear your PIN and require you to set a new one. Data is NOT deleted. Continue?')) {
+      localStorage.removeItem(PIN_KEY);
+      setPhase('setup'); setDigits([]); setFirst(''); setError('');
+    }
+  };
+
+  const titles = {
+    setup:          { t:'Set Your PIN', s:'Choose a 4-digit PIN to secure your dashboard' },
+    confirm:        { t:'Confirm PIN',  s:'Enter the same PIN again to confirm' },
+    enter:          { t:'Enter PIN',    s:'Enter your 4-digit PIN to access GS Accounts' },
+    change_old:     { t:'Current PIN',  s:'Enter your current PIN to proceed' },
+    change_new:     { t:'New PIN',      s:'Choose a new 4-digit PIN' },
+    change_confirm: { t:'Confirm PIN',  s:'Re-enter your new PIN to confirm' },
+  };
+  const { t, s } = titles[phase] || titles.enter;
+
+  return (
+    <div className="pin-screen">
+      <div className="pin-logo">
+        <img src={LOGO_IMG} alt="Go Systematic" onError={e=>e.target.style.display='none'}/>
+        <div className="brand">Go Systematic</div>
+        <div className="sub">Accounts Dashboard</div>
+      </div>
+
+      <div className="pin-card">
+        <div className="pin-title">{t}</div>
+        <div className="pin-sub">{s}</div>
+
+        <div className="pin-dots">
+          {[0,1,2,3].map(i=>(
+            <div key={i} className={`pin-dot${digits.length>i?' filled':''}${shake?' error':''}`}/>
+          ))}
+        </div>
+
+        <div className="pin-grid">
+          {[1,2,3,4,5,6,7,8,9].map(n=>(
+            <button key={n} className="pin-btn" onClick={()=>addDigit(String(n))}>{n}</button>
+          ))}
+          <div/>
+          <button className="pin-btn zero" onClick={()=>addDigit('0')}>0</button>
+          <button className="pin-btn del" onClick={del}>⌫</button>
+        </div>
+
+        <div className="pin-error">{error}</div>
+
+        {phase==='setup' && (
+          <div className="pin-setup-hint">🔒 Your PIN is stored locally and never shared</div>
+        )}
+        {phase==='enter' && (
+          <div className="pin-forgot" onClick={forgotPin}>Forgot PIN?</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── PIN SETTINGS PANEL (inside Settings page) ───────────────
+function PinSettings() {
+  const hasPin = !!localStorage.getItem(PIN_KEY);
+  const [showChange, setShowChange] = useState(false);
+
+  const removePin = () => {
+    if(confirm('Remove PIN protection? Anyone can open the app without a PIN.')) {
+      localStorage.removeItem(PIN_KEY);
+      sessionStorage.removeItem(PIN_SESS);
+      window.location.reload();
+    }
+  };
+
+  return (
+    <div className="card" style={{marginTop:20}}>
+      <div className="card-header">
+        <span className="card-title">🔒 PIN Protection</span>
+        <span style={{fontSize:12,color:'var(--text-muted)'}}>{hasPin?'Active ✅':'Not set'}</span>
+      </div>
+      <div className="card-body">
+        {hasPin ? (
+          <div>
+            <div className="alert alert-success" style={{marginBottom:14}}>
+              ✅ Your dashboard is PIN-protected. A 4-digit PIN is required every session.
+            </div>
+            <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>
+              <button className="btn btn-outline" onClick={()=>{ sessionStorage.removeItem(PIN_SESS); window.location.reload(); }}>
+                🔐 Lock Now
+              </button>
+              <button className="btn btn-outline" onClick={removePin}>
+                🔓 Remove PIN
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div>
+            <p style={{fontSize:13,color:'var(--text-secondary)',marginBottom:14}}>
+              Add a 4-digit PIN to prevent unauthorised access on shared or mobile devices. PIN is stored locally — only on this browser.
+            </p>
+            <button className="btn btn-primary" onClick={()=>{ localStorage.removeItem(PIN_KEY); sessionStorage.removeItem(PIN_SESS); window.location.reload(); }}>
+              🔒 Set Up PIN
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
 function App() {
+  const [unlocked, setUnlocked] = useState(()=>{
+    // Already unlocked this session, or no PIN set
+    return !!sessionStorage.getItem(PIN_SESS) || !localStorage.getItem(PIN_KEY);
+  });
   const [page, setPage] = useState('dashboard');
   const [data, setData] = useState(EMPTY_DATA);
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [fyFilter, setFyFilter] = useState(currentFY());
   const github = useGitHubStorage();
   const COMPANY = useMemo(() => ({ ...DEFAULT_COMPANY, ...(data.companyInfo || {}) }), [data.companyInfo]);
   
@@ -685,6 +956,8 @@ function App() {
     { id: 'reports', icon: '📈', label: 'Reports' },
     { id: 'settings', icon: '⚙️', label: 'Settings' },
   ];
+
+  if(!unlocked) return <PinLock onUnlock={()=>setUnlocked(true)}/>;
 
   return (
     <div>
@@ -743,12 +1016,12 @@ function App() {
               ⚠️ <span><strong>GitHub not connected.</strong> Data is saved locally in your browser. <button className="btn btn-sm btn-amber" style={{marginLeft:8}} onClick={()=>setShowConfigModal(true)}>Connect Now</button></span>
             </div>
           )}
-          {page==='dashboard' && <Dashboard data={data} setPage={setPage} />}
-          {page==='invoices' && <Invoices data={data} persist={persist} company={COMPANY} />}
-          {page==='receipts' && <Receipts data={data} persist={persist} company={COMPANY} />}
-          {page==='expenses' && <Expenses data={data} persist={persist} />}
+          {page==='dashboard' && <Dashboard data={data} setPage={setPage} fyFilter={fyFilter} setFyFilter={setFyFilter} />}
+          {page==='invoices' && <Invoices data={data} persist={persist} company={COMPANY} fyFilter={fyFilter} />}
+          {page==='receipts' && <Receipts data={data} persist={persist} company={COMPANY} fyFilter={fyFilter} />}
+          {page==='expenses' && <Expenses data={data} persist={persist} fyFilter={fyFilter} />}
           {page==='clients' && <Clients data={data} persist={persist} />}
-          {page==='reports' && <Reports data={data} />}
+          {page==='reports' && <Reports data={data} fyFilter={fyFilter} setFyFilter={setFyFilter} />}
           {page==='settings' && <Settings github={github} onConfigSave={()=>setShowConfigModal(false)} data={data} persist={persist} company={COMPANY} />}
         </div>
       </div>
@@ -770,16 +1043,20 @@ function App() {
         ))}
       </div>
 
+      <PWAInstallPrompt />
       {showConfigModal && <GitHubConfigModal github={github} onClose={()=>setShowConfigModal(false)} onSave={()=>{setShowConfigModal(false); loadFromGitHub();}} />}
     </div>
   );
 }
 
 // ─── DASHBOARD ───
-function Dashboard({ data, setPage }) {
-  const invoices = data.invoices || [];
-  const expenses = data.expenses || [];
-  const receipts = data.receipts || [];
+function Dashboard({ data, setPage, fyFilter, setFyFilter }) {
+  const allInvoices = data.invoices || [];
+  const allExpenses = data.expenses || [];
+  const allReceipts = data.receipts || [];
+  const invoices = fyFilter==='All' ? allInvoices : allInvoices.filter(i=>getFY(i.date)===fyFilter);
+  const expenses = fyFilter==='All' ? allExpenses : allExpenses.filter(e=>getFY(e.date)===fyFilter);
+  const receipts = fyFilter==='All' ? allReceipts : allReceipts.filter(r=>getFY(r.date)===fyFilter);
 
   const totalBilled = invoices.filter(i=>['Tax Invoice','Proforma Invoice','Quotation'].includes(i.type)).reduce((a,b)=>a+(b.grand||0),0);
   const totalReceived = receipts.reduce((a,b)=>a+(b.amount||0),0);
@@ -789,11 +1066,32 @@ function Dashboard({ data, setPage }) {
   const recent = [...invoices].sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,5);
 
   const paid = invoices.filter(i=>i.status==='Paid').length;
+  const today2 = new Date();
+  const overdueInvs = invoices.filter(i=>{
+    if(i.status==='Paid'||i.status==='Cancelled'||i.status==='Draft') return false;
+    if(!i.dueDate) return false;
+    return new Date(i.dueDate) < today2;
+  });
+  const daysOverdue = (inv) => Math.floor((today2-new Date(inv.dueDate))/(1000*60*60*24));
   const pending = invoices.filter(i=>i.status==='Pending').length;
   const overdue = invoices.filter(i=>i.status==='Overdue').length;
 
   return (
     <div>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16,flexWrap:'wrap',gap:10}}>
+        <div>
+          <div className="section-title">Dashboard</div>
+          <div className="section-sub">Financial overview for <strong>{fyFilter==='All'?'All Years':fyFilter}</strong></div>
+        </div>
+        <div style={{display:'flex',alignItems:'center',gap:8}}>
+          <span style={{fontSize:12,color:'var(--text-muted)',fontWeight:500}}>Financial Year:</span>
+          <div className="tabs" style={{marginBottom:0}}>
+            {ALL_FYS.map(fy=>(
+              <button key={fy} className={`tab-btn ${fyFilter===fy?'active':''}`} onClick={()=>setFyFilter(fy)}>{fy}</button>
+            ))}
+          </div>
+        </div>
+      </div>
       <div className="stats-grid">
         <div className="stat-card navy">
           <div className="stat-icon">🧾</div>
@@ -821,6 +1119,24 @@ function Dashboard({ data, setPage }) {
         </div>
       </div>
 
+      {overdueInvs.length>0 && (
+        <div style={{background:'var(--danger-bg)',border:'1px solid #F5AABB',borderRadius:10,padding:'14px 18px',marginBottom:18,display:'flex',alignItems:'flex-start',gap:12}}>
+          <div style={{fontSize:24,flexShrink:0}}>⚠️</div>
+          <div style={{flex:1}}>
+            <div style={{fontWeight:700,color:'var(--danger)',fontSize:14,marginBottom:6}}>
+              {overdueInvs.length} Overdue Invoice{overdueInvs.length>1?'s':''} Require Attention
+            </div>
+            <div style={{display:'flex',flexWrap:'wrap',gap:8}}>
+              {overdueInvs.map(inv=>(
+                <div key={inv.id} style={{background:'white',border:'1px solid #F5AABB',borderRadius:6,padding:'4px 10px',fontSize:12}}>
+                  <strong>{inv.number}</strong> — {inv.clientName||'Unknown'}
+                  <span style={{color:'var(--danger)',fontWeight:600,marginLeft:6}}>{daysOverdue(inv)}d overdue</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
       <div className="grid-2" style={{marginBottom:24}}>
         <div className="card">
           <div className="card-header">
@@ -900,7 +1216,7 @@ function StatusBadge({s}) {
 }
 
 // ─── INVOICES ───
-function Invoices({ data, persist, company }) {
+function Invoices({ data, persist, company, fyFilter }) {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
   const [preview, setPreview] = useState(null);
@@ -908,13 +1224,15 @@ function Invoices({ data, persist, company }) {
   const [search, setSearch] = useState('');
   const invoices = data.invoices || [];
 
-  const filtered = invoices.filter(inv => {
+  const fyInvoices = (fyFilter && fyFilter!=='All') ? invoices.filter(i=>getFY(i.date)===fyFilter) : invoices;
+  const filtered = fyInvoices.filter(inv => {
     const matchFilter = filter==='All' || inv.type===filter || inv.status===filter;
     const matchSearch = !search || (inv.number||'').toLowerCase().includes(search.toLowerCase()) || (inv.clientName||'').toLowerCase().includes(search.toLowerCase());
     return matchFilter && matchSearch;
   }).sort((a,b)=>new Date(b.date)-new Date(a.date));
 
-  const [showICR, setShowICR] = useState(null); // invoice being converted
+  const [showICR, setShowICR] = useState(null);
+  const [emailTarget, setEmailTarget] = useState(null); // invoice being converted
 
   const save = (doc) => {
     const inv = { ...doc, id: doc.id||genId('INV'), date: doc.date||today() };
@@ -942,6 +1260,23 @@ function Invoices({ data, persist, company }) {
     setShowICR(null);
     // Auto-download PDF
     setTimeout(() => exportICRPDF(newDoc, icr, company), 400);
+  };
+
+  const convertToProforma = (quotation) => {
+    const newNum = quotation.number.replace('QUO','PI').replace('Q-','PI-') + '-PI';
+    const pi = {
+      ...quotation,
+      id: genId('INV'),
+      type: 'Proforma Invoice',
+      number: newNum,
+      date: today(),
+      dueDate: '',
+      status: 'Draft',
+      convertedFrom: quotation.id,
+      notes: quotation.notes || '',
+    };
+    const updated = [pi, ...invoices.map(i=>i.id===quotation.id?{...i,status:'Sent',convertedTo:pi.id}:i)];
+    persist({...data, invoices: updated});
   };
 
   const reCreateReceipt = (icrDoc) => {
@@ -1018,6 +1353,7 @@ function Invoices({ data, persist, company }) {
                           <button className="btn btn-ghost btn-sm" onClick={()=>setPreview(inv)} title="Preview">👁</button>
                           <button className="btn btn-ghost btn-sm" onClick={()=>{setEditing(inv);setShowForm(true);}} title="Edit">✏️</button>
                           <button className="btn btn-ghost btn-sm" onClick={()=>exportInvoicePDF(inv, company)} title="PDF">📄</button>
+                          <button className="btn btn-ghost btn-sm" onClick={()=>setEmailTarget(inv)} title="Email Invoice" style={{color:'var(--blue)'}}>✉️</button>
                           {(() => {
                             if(inv.type==='Invoice cum Receipt') {
                               // On ICR row: show re-download ICR PDF + re-create receipt
@@ -1026,7 +1362,14 @@ function Invoices({ data, persist, company }) {
                                 <button className="btn btn-ghost btn-sm" onClick={()=>reCreateReceipt(inv)} title="Re-generate Payment Receipt" style={{color:'var(--blue)',fontSize:13}}>🧾</button>
                               </span>;
                             }
-                            if(inv.type==='Proforma Invoice'||inv.type==='Tax Invoice'||inv.type==='Quotation') {
+                            if(inv.type==='Quotation') {
+                              const linkedPI = invoices.find(x=>x.convertedFrom===inv.id && x.type==='Proforma Invoice');
+                              const linkedICR2 = invoices.find(x=>x.convertedFrom===inv.id && x.type==='Invoice cum Receipt');
+                              if(linkedICR2) return <span style={{fontSize:11,color:'var(--success)',fontWeight:600,padding:'0 4px'}}>✓ ICR</span>;
+                              if(linkedPI) return <span style={{fontSize:11,color:'var(--blue)',fontWeight:600,padding:'0 4px'}}>✓ PI</span>;
+                              return <button className="btn btn-ghost btn-sm" title="Convert to Proforma Invoice" onClick={()=>convertToProforma(inv)} style={{color:'var(--blue)',fontSize:13}}>📋</button>;
+                            }
+                            if(inv.type==='Proforma Invoice'||inv.type==='Tax Invoice') {
                               const linkedICR = invoices.find(x=>x.convertedFrom===inv.id);
                               if(linkedICR) {
                                 return <span title={'ICR: '+linkedICR.number} style={{fontSize:11,color:'var(--success)',padding:'0 4px',fontWeight:600}}>✓ ICR</span>;
@@ -1054,6 +1397,7 @@ function Invoices({ data, persist, company }) {
       {showForm && <InvoiceForm initial={editing} clients={data.clients||[]} onSave={save} onClose={()=>{setShowForm(false);setEditing(null);}} company={company} />}
       {preview && <InvoicePreviewModal inv={preview} onClose={()=>setPreview(null)} company={company} />}
       {showICR && <ICRModal inv={showICR} onSave={saveICR} onClose={()=>setShowICR(null)} company={company} />}
+      {emailTarget && <EmailModal inv={emailTarget} company={company} onClose={()=>setEmailTarget(null)} />}
     </div>
   );
 }
@@ -1362,7 +1706,7 @@ function InvoiceDocument({ inv, company }) {
 }
 
 // ─── RECEIPTS ───
-function Receipts({ data, persist, company }) {
+function Receipts({ data, persist, company, fyFilter }) {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
   const receipts = data.receipts || [];
@@ -1389,7 +1733,7 @@ function Receipts({ data, persist, company }) {
           {receipts.length===0
             ? <div className="empty-state"><div className="icon">💳</div><h3>No receipts yet</h3><p>Record your first payment receipt</p><button className="btn btn-primary" onClick={()=>setShowForm(true)}>+ New Receipt</button></div>
             : <table>
-                <thead><tr><th>Receipt No.</th><th>Date</th><th>Client</th><th>Against Invoice</th><th>Mode</th><th>Amount</th><th>Notes</th><th>Actions</th></tr></thead>
+                <thead><tr><th>Receipt No.</th><th>Date</th><th>Client</th><th>Against Invoice</th><th>Mode</th><th>Amount</th><th>TDS</th><th>Net</th><th>Actions</th></tr></thead>
                 <tbody>
                   {receipts.sort((a,b)=>new Date(b.date)-new Date(a.date)).map(r=>(
                     <tr key={r.id}>
@@ -1399,7 +1743,8 @@ function Receipts({ data, persist, company }) {
                       <td>{r.invoiceRef||'—'}</td>
                       <td><span className="badge badge-blue">{r.mode||'Bank Transfer'}</span></td>
                       <td className="amount" style={{color:'var(--success)'}}>{fmt(r.amount)}</td>
-                      <td style={{fontSize:12,color:'var(--text-muted)'}}>{r.notes||'—'}</td>
+                      <td className="amount" style={{color:'var(--danger)',fontSize:12}}>{r.tdsAmount?fmt(r.tdsAmount):'—'}</td>
+                      <td className="amount" style={{fontSize:12}}>{r.tdsAmount?fmt(parseFloat(r.amount||0)-parseFloat(r.tdsAmount||0)):'—'}</td>
                       <td>
                         <div className="flex-gap">
                           <button className="btn btn-ghost btn-sm" onClick={()=>{setEditing(r);setShowForm(true);}}>✏️</button>
@@ -1424,7 +1769,7 @@ function Receipts({ data, persist, company }) {
 }
 
 function ReceiptForm({ initial, invoices, clients, onSave, onClose }) {
-  const [r, setR] = useState(initial || { number: '', date: today(), clientName: '', invoiceRef: '', amount: '', mode: 'Bank Transfer', transRef: '', notes: '' });
+  const [r, setR] = useState(initial || { number: '', date: today(), clientName: '', invoiceRef: '', amount: '', mode: 'Bank Transfer', transRef: '', tdsAmount: '', tdsSection: '', grossAmount: '', notes: '' });
   const set = (k,v) => setR(x=>({...x,[k]:v}));
   return (
     <div className="modal-backdrop">
@@ -1457,6 +1802,31 @@ function ReceiptForm({ initial, invoices, clients, onSave, onClose }) {
             </div>
             <div className="form-group"><label className="form-label">Transaction / Cheque Ref</label><input className="form-control" value={r.transRef} onChange={e=>set('transRef',e.target.value)} placeholder="UTR / Cheque no."/></div>
           </div>
+          <div style={{background:'var(--surface-alt)',borderRadius:8,padding:12,marginBottom:12,border:'1px solid var(--border)'}}>
+            <div style={{fontWeight:600,fontSize:12,color:'var(--navy)',marginBottom:10}}>🔖 TDS Deduction (if applicable)</div>
+            <div className="form-grid-3">
+              <div className="form-group">
+                <label className="form-label">Gross Invoice Amount (₹)</label>
+                <input type="number" className="form-control" value={r.grossAmount} onChange={e=>set('grossAmount',e.target.value)} placeholder="Invoice total"/>
+              </div>
+              <div className="form-group">
+                <label className="form-label">TDS Deducted (₹)</label>
+                <input type="number" className="form-control" value={r.tdsAmount} onChange={e=>set('tdsAmount',e.target.value)} placeholder="0.00"/>
+              </div>
+              <div className="form-group">
+                <label className="form-label">TDS Section</label>
+                <select className="form-control" value={r.tdsSection} onChange={e=>set('tdsSection',e.target.value)}>
+                  <option value="">Not applicable</option>
+                  {['194C - Contractor (1%)','194J - Professional (10%)','194H - Commission (5%)',
+                    '194I - Rent (10%)','194A - Interest (10%)','194B - Lottery (30%)',
+                    '194D - Insurance (5%)','194K - Dividend (10%)','Other'].map(s=><option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+            </div>
+            {r.tdsAmount>0 && <div style={{marginTop:8,padding:'8px 12px',background:'var(--warning-bg)',borderRadius:6,fontSize:12,color:'var(--warning)'}}>
+              Net received: ₹{fmt((parseFloat(r.grossAmount||r.amount||0)-parseFloat(r.tdsAmount||0)))} after TDS of ₹{fmt(r.tdsAmount)}
+            </div>}
+          </div>
           <div className="form-group"><label className="form-label">Notes</label><textarea className="form-control" rows={2} value={r.notes} onChange={e=>set('notes',e.target.value)}/></div>
         </div>
         <div className="modal-footer">
@@ -1473,7 +1843,8 @@ function Expenses({ data, persist }) {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
   const [catFilter, setCatFilter] = useState('All');
-  const expenses = data.expenses || [];
+  const allExpenses2 = data.expenses || [];
+  const expenses = (fyFilter && fyFilter!=='All') ? allExpenses2.filter(e=>getFY(e.date)===fyFilter) : allExpenses2;
   const cats = ['All',...new Set(expenses.map(e=>e.category).filter(Boolean)),'Other'];
 
   const filtered = expenses.filter(e=>catFilter==='All'||e.category===catFilter).sort((a,b)=>new Date(b.date)-new Date(a.date));
@@ -1514,7 +1885,7 @@ function Expenses({ data, persist }) {
           {filtered.length===0
             ? <div className="empty-state"><div className="icon">💸</div><h3>No expenses</h3><button className="btn btn-primary" onClick={()=>setShowForm(true)}>+ Add Expense</button></div>
             : <table>
-                <thead><tr><th>Date</th><th>Category</th><th>Description</th><th>Vendor</th><th>GST Input</th><th>Amount</th><th>Receipt</th><th>Actions</th></tr></thead>
+                <thead><tr><th>Date</th><th>Category</th><th>Description</th><th>Vendor</th><th>GST Input</th><th>Amount</th><th>Receipt</th><th>📎</th><th>Actions</th></tr></thead>
                 <tbody>
                   {filtered.map(e=>(
                     <tr key={e.id}>
@@ -1525,6 +1896,10 @@ function Expenses({ data, persist }) {
                       <td className="amount" style={{color:'var(--amber)'}}>{e.gstInput?fmt(e.gstInput):'-'}</td>
                       <td className="amount" style={{color:'var(--danger)'}}>{fmt(e.amount)}</td>
                       <td style={{fontSize:12,color:'var(--text-muted)'}}>{e.receiptNo||'—'}</td>
+                      <td>{e.receiptImg
+                        ? <img src={e.receiptImg} alt="Receipt" onClick={()=>window.open(e.receiptImg,'_blank')} style={{height:28,width:28,objectFit:'cover',borderRadius:4,cursor:'pointer',border:'1px solid var(--border)'}} title="View receipt"/>
+                        : <span style={{color:'var(--text-muted)',fontSize:11}}>—</span>}
+                      </td>
                       <td>
                         <div className="flex-gap">
                           <button className="btn btn-ghost btn-sm" onClick={()=>{setEditing(e);setShowForm(true);}}>✏️</button>
@@ -1548,7 +1923,7 @@ function Expenses({ data, persist }) {
 }
 
 function ExpenseForm({ initial, onSave, onClose }) {
-  const [e, setE] = useState(initial || { date: today(), category: 'Operations', desc: '', vendor: '', amount: '', gstInput: '', receiptNo: '', notes: '' });
+  const [e, setE] = useState(initial || { date: today(), category: 'Operations', desc: '', vendor: '', amount: '', gstInput: '', receiptNo: '', notes: '', receiptImg: '' });
   const set = (k,v) => setE(x=>({...x,[k]:v}));
   const cats = ['Operations','Software & Tools','Marketing','Travel','Office Supplies','Professional Services','Salaries','Rent & Utilities','Banking & Finance','Other'];
   return (
@@ -1575,6 +1950,25 @@ function ExpenseForm({ initial, onSave, onClose }) {
             <div className="form-group"><label className="form-label">GST Input Credit (₹)</label><input type="number" className="form-control" value={e.gstInput} onChange={x=>set('gstInput',x.target.value)} min={0} placeholder="If applicable"/></div>
           </div>
           <div className="form-group"><label className="form-label">Notes</label><textarea className="form-control" rows={2} value={e.notes} onChange={x=>set('notes',x.target.value)}/></div>
+          <div className="form-group">
+            <label className="form-label">Attach Receipt Image (optional)</label>
+            <input type="file" accept="image/*" className="form-control" style={{padding:'6px'}}
+              onChange={x=>{
+                const file=x.target.files[0];
+                if(!file) return;
+                if(file.size>2*1024*1024){alert('Image must be under 2MB');return;}
+                const reader=new FileReader();
+                reader.onload=ev=>set('receiptImg',ev.target.result);
+                reader.readAsDataURL(file);
+              }}
+            />
+            {e.receiptImg && (
+              <div style={{marginTop:8,display:'flex',alignItems:'center',gap:10}}>
+                <img src={e.receiptImg} alt="Receipt" style={{height:60,borderRadius:4,border:'1px solid var(--border)',objectFit:'cover'}}/>
+                <button className="btn btn-ghost btn-sm" onClick={()=>set('receiptImg','')} style={{color:'var(--danger)'}}>✕ Remove</button>
+              </div>
+            )}
+          </div>
         </div>
         <div className="modal-footer">
           <button className="btn btn-outline" onClick={onClose}>Cancel</button>
@@ -1694,10 +2088,14 @@ function ClientForm({ initial, onSave, onClose }) {
 }
 
 // ─── REPORTS ───
-function Reports({ data }) {
-  const invoices = data.invoices || [];
-  const expenses = data.expenses || [];
-  const receipts = data.receipts || [];
+function Reports({ data, fyFilter, setFyFilter }) {
+  const [stmtClient, setStmtClient] = useState(null);
+  const allInvoices = data.invoices || [];
+  const allExpenses = data.expenses || [];
+  const allReceipts = data.receipts || [];
+  const invoices = fyFilter==='All' ? allInvoices : allInvoices.filter(i=>getFY(i.date)===fyFilter);
+  const expenses = fyFilter==='All' ? allExpenses : allExpenses.filter(e=>getFY(e.date)===fyFilter);
+  const receipts = fyFilter==='All' ? allReceipts : allReceipts.filter(r=>getFY(r.date)===fyFilter);
 
   const totalBilled = invoices.reduce((a,b)=>a+(b.grand||0),0);
   const totalGSTCollected = invoices.reduce((a,b)=>a+(b.gstTotal||0),0);
@@ -1736,11 +2134,28 @@ function Reports({ data }) {
       <div className="flex-between" style={{marginBottom:20}}>
         <div>
           <div className="section-title">Reports & Analytics</div>
-          <div className="section-sub">Financial overview and summaries</div>
+          <div className="section-sub">Financial overview for <strong>{fyFilter==='All'?'All Years':fyFilter}</strong></div>
         </div>
-        <button className="btn btn-amber" onClick={exportFullReport}>⬇ Export Full Report (Excel)</button>
+        <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>
+          <button className="btn btn-amber" onClick={exportFullReport}>⬇ Export Full Report (Excel)</button>
+          <button className="btn btn-outline" onClick={()=>setStmtClient('pick')}>📋 Client Statement PDF</button>
+        </div>
       </div>
 
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16,flexWrap:'wrap',gap:10}}>
+        <div>
+          <div className="section-title">Dashboard</div>
+          <div className="section-sub">Financial overview for <strong>{fyFilter==='All'?'All Years':fyFilter}</strong></div>
+        </div>
+        <div style={{display:'flex',alignItems:'center',gap:8}}>
+          <span style={{fontSize:12,color:'var(--text-muted)',fontWeight:500}}>Financial Year:</span>
+          <div className="tabs" style={{marginBottom:0}}>
+            {ALL_FYS.map(fy=>(
+              <button key={fy} className={`tab-btn ${fyFilter===fy?'active':''}`} onClick={()=>setFyFilter(fy)}>{fy}</button>
+            ))}
+          </div>
+        </div>
+      </div>
       <div className="stats-grid">
         <div className="stat-card navy"><div className="stat-label">Total Revenue</div><div className="stat-value">{fmt(totalBilled)}</div></div>
         <div className="stat-card blue"><div className="stat-label">Received</div><div className="stat-value">{fmt(totalReceived)}</div></div>
@@ -1838,6 +2253,7 @@ function Settings({ github, onConfigSave, data, persist, company }) {
         </div>
       </div>
       <CompanyInfoForm company={company} data={data} persist={persist} />
+      <PinSettings />
     </div>
   );
 }
@@ -2100,6 +2516,230 @@ function ICRModal({ inv, onSave, onClose, company }) {
           <button className="btn btn-primary" onClick={handleConvert}>
             ✅ Generate Invoice cum Receipt + PDF
           </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+// ─── PWA INSTALL PROMPT ──────────────────────────────────────
+function PWAInstallPrompt() {
+  const [deferredPrompt, setDeferredPrompt] = useState(null);
+  const [showBanner, setShowBanner] = useState(false);
+
+  useEffect(()=>{
+    const handler = (e) => { e.preventDefault(); setDeferredPrompt(e); setShowBanner(true); };
+    window.addEventListener('beforeinstallprompt', handler);
+    return ()=>window.removeEventListener('beforeinstallprompt', handler);
+  },[]);
+
+  const install = async () => {
+    if(!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const {outcome} = await deferredPrompt.userChoice;
+    if(outcome==='accepted') setShowBanner(false);
+    setDeferredPrompt(null);
+  };
+
+  if(!showBanner) return null;
+  return (
+    <div style={{position:'fixed',bottom:70,left:0,right:0,zIndex:500,display:'flex',justifyContent:'center',padding:'0 16px',pointerEvents:'none'}}>
+      <div style={{background:'var(--navy)',color:'white',borderRadius:12,padding:'12px 18px',display:'flex',alignItems:'center',gap:12,boxShadow:'0 8px 32px rgba(0,0,0,0.3)',maxWidth:400,width:'100%',pointerEvents:'all'}}>
+        <span style={{fontSize:28}}>📲</span>
+        <div style={{flex:1}}>
+          <div style={{fontWeight:700,fontSize:13}}>Add to Home Screen</div>
+          <div style={{fontSize:11,color:'rgba(255,255,255,0.6)',marginTop:2}}>Install GS Accounts for quick access</div>
+        </div>
+        <button className="btn btn-amber btn-sm" onClick={install}>Install</button>
+        <button className="btn btn-ghost btn-sm" onClick={()=>setShowBanner(false)} style={{color:'rgba(255,255,255,0.5)',padding:'4px 6px'}}>✕</button>
+      </div>
+    </div>
+  );
+}
+
+// ─── EMAIL MODAL ────────────────────────────────────────────
+function EmailModal({ inv, company, onClose }) {
+  const C = company || DEFAULT_COMPANY;
+  const [cfg, setCfg] = useState(() => {
+    const s = localStorage.getItem('gs_emailjs_config');
+    return s ? JSON.parse(s) : { serviceId:'', templateId:'', publicKey:'', configured:false };
+  });
+  const [form, setForm] = useState({
+    to: inv.clientEmail || '',
+    subject: `${inv.type} #${inv.number} from ${C.brand||'Go Systematic'}`,
+    message: `Dear ${inv.clientName||'Client'},
+
+Please find attached ${inv.type} #${inv.number} for ${fmt(inv.grand)}.
+
+For any queries, please contact us at ${C.email||''}.
+
+Warm regards,
+${C.brand||'Go Systematic'}
+${C.name||''}`,
+  });
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [showCfg, setShowCfg] = useState(!cfg.configured);
+  const set = (k,v) => setForm(x=>({...x,[k]:v}));
+  const setCfgField = (k,v) => setCfg(x=>({...x,[k]:v}));
+
+  const saveCfg = () => {
+    const c = {...cfg, configured:true};
+    localStorage.setItem('gs_emailjs_config', JSON.stringify(c));
+    setCfg(c); setShowCfg(false);
+  };
+
+  const sendEmail = async () => {
+    if(!form.to){ alert('Please enter recipient email'); return; }
+    if(!cfg.configured){ alert('Please configure EmailJS first'); setShowCfg(true); return; }
+    setSending(true);
+    try {
+      await emailjs.send(cfg.serviceId, cfg.templateId, {
+        to_email: form.to, to_name: inv.clientName||'Client',
+        from_name: C.brand||'Go Systematic',
+        subject: form.subject, message: form.message,
+        invoice_number: inv.number, amount: fmt(inv.grand),
+        company_name: C.name, company_email: C.email||'',
+      }, cfg.publicKey);
+      setSent(true);
+    } catch(err) {
+      alert('Failed to send: '+(err.text||err.message||'Unknown error'));
+    }
+    setSending(false);
+  };
+
+  return (
+    <div className="modal-backdrop">
+      <div className="modal" style={{maxWidth:560}}>
+        <div className="modal-header">
+          <h2>✉️ Email {inv.type}</h2>
+          <button className="modal-close" onClick={onClose}>✕</button>
+        </div>
+        <div className="modal-body">
+          {sent ? (
+            <div className="alert alert-success" style={{textAlign:'center',padding:24}}>
+              <div style={{fontSize:32,marginBottom:8}}>✅</div>
+              <div style={{fontSize:15,fontWeight:600}}>Email sent successfully!</div>
+              <div style={{fontSize:13,color:'var(--text-muted)',marginTop:4}}>Sent to {form.to}</div>
+            </div>
+          ) : (
+            <>
+              {showCfg ? (
+                <div>
+                  <div className="alert alert-info" style={{marginBottom:16}}>
+                    ℹ️ EmailJS is a free service to send emails from browser apps. 
+                    <a href="https://www.emailjs.com" target="_blank" rel="noreferrer" style={{marginLeft:4,color:'var(--blue)'}}>Set up free account →</a>
+                  </div>
+                  <div className="form-group"><label className="form-label">EmailJS Service ID</label><input className="form-control" value={cfg.serviceId} onChange={e=>setCfgField('serviceId',e.target.value)} placeholder="service_xxxxxxx"/></div>
+                  <div className="form-group"><label className="form-label">Template ID</label><input className="form-control" value={cfg.templateId} onChange={e=>setCfgField('templateId',e.target.value)} placeholder="template_xxxxxxx"/></div>
+                  <div className="form-group"><label className="form-label">Public Key</label><input className="form-control" value={cfg.publicKey} onChange={e=>setCfgField('publicKey',e.target.value)} placeholder="Your public key"/></div>
+                  <button className="btn btn-primary" onClick={saveCfg}>💾 Save & Continue</button>
+                </div>
+              ) : (
+                <div>
+                  <div style={{display:'flex',justifyContent:'flex-end',marginBottom:8}}>
+                    <button className="btn btn-ghost btn-sm" onClick={()=>setShowCfg(true)}>⚙️ EmailJS Settings</button>
+                  </div>
+                  <div className="form-group"><label className="form-label">To (Email)</label><input className="form-control" value={form.to} onChange={e=>set('to',e.target.value)} placeholder="client@email.com" type="email"/></div>
+                  <div className="form-group"><label className="form-label">Subject</label><input className="form-control" value={form.subject} onChange={e=>set('subject',e.target.value)}/></div>
+                  <div className="form-group"><label className="form-label">Message</label><textarea className="form-control" rows={6} value={form.message} onChange={e=>set('message',e.target.value)}/></div>
+                  <div className="alert alert-warning">📎 Note: The PDF will be downloaded separately. Attach it manually to the email, or use an EmailJS template that generates the attachment.</div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+        {!sent && !showCfg && (
+          <div className="modal-footer">
+            <button className="btn btn-outline" onClick={onClose}>Cancel</button>
+            <button className="btn btn-ghost btn-sm" onClick={()=>exportInvoicePDF(inv,company)}>📄 Download PDF first</button>
+            <button className="btn btn-primary" onClick={sendEmail} disabled={sending}>
+              {sending?'Sending…':'✉️ Send Email'}
+            </button>
+          </div>
+        )}
+        {sent && <div className="modal-footer"><button className="btn btn-primary" onClick={onClose}>Done</button></div>}
+      </div>
+    </div>
+  );
+}
+
+// ─── CLIENT STATEMENT MODAL ──────────────────────────────────
+function ClientStatementModal({ data, clients, onClose, fyFilter }) {
+  const [selectedClient, setSelectedClient] = useState('');
+  const allClients = [...new Set([
+    ...clients.map(c=>c.name),
+    ...(data.invoices||[]).map(i=>i.clientName),
+    ...(data.receipts||[]).map(r=>r.clientName),
+  ].filter(Boolean))].sort();
+
+  const clientInvoices = (data.invoices||[]).filter(i=>i.clientName===selectedClient && (fyFilter==='All'||!fyFilter||getFY(i.date)===fyFilter));
+  const clientReceipts = (data.receipts||[]).filter(r=>r.clientName===selectedClient && (fyFilter==='All'||!fyFilter||getFY(r.date)===fyFilter));
+  const totalBilled = clientInvoices.reduce((a,b)=>a+(b.grand||0),0);
+  const totalReceived = clientReceipts.reduce((a,b)=>a+(parseFloat(b.amount)||0),0);
+  const outstanding = totalBilled - totalReceived;
+
+  const generatePDF = () => {
+    if(!selectedClient){ alert('Please select a client'); return; }
+    exportClientStatementPDF(selectedClient, clientInvoices, clientReceipts, fyFilter);
+  };
+
+  return (
+    <div className="modal-backdrop">
+      <div className="modal" style={{maxWidth:700}}>
+        <div className="modal-header">
+          <h2>📋 Client Statement</h2>
+          <button className="modal-close" onClick={onClose}>✕</button>
+        </div>
+        <div className="modal-body">
+          <div className="form-grid-2" style={{marginBottom:16}}>
+            <div className="form-group">
+              <label className="form-label">Select Client</label>
+              <select className="form-control" value={selectedClient} onChange={e=>setSelectedClient(e.target.value)}>
+                <option value="">— Choose client —</option>
+                {allClients.map(c=><option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Financial Year</label>
+              <div style={{padding:'9px 12px',border:'1.5px solid var(--border)',borderRadius:6,fontSize:13,color:'var(--text-muted)'}}>{fyFilter||'All'}</div>
+            </div>
+          </div>
+          {selectedClient && (
+            <>
+              <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12,marginBottom:16}}>
+                {[['Total Billed',fmt(totalBilled),'var(--navy)'],['Received',fmt(totalReceived),'var(--success)'],['Outstanding',fmt(outstanding),outstanding>0?'var(--danger)':'var(--success)']].map(([l,v,c])=>(
+                  <div key={l} style={{background:'var(--off-white)',borderRadius:8,padding:12,border:'1px solid var(--border)'}}>
+                    <div style={{fontSize:10,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:0.5}}>{l}</div>
+                    <div style={{fontFamily:'Rajdhani,sans-serif',fontSize:20,fontWeight:700,color:c,marginTop:2}}>{v}</div>
+                  </div>
+                ))}
+              </div>
+              <div className="table-wrap">
+                <table>
+                  <thead><tr><th>Date</th><th>Document</th><th>Type</th><th>Amount</th><th>Status</th></tr></thead>
+                  <tbody>
+                    {[...clientInvoices.map(i=>({date:i.date,num:i.number,type:i.type,amt:fmt(i.grand),status:i.status,color:'var(--navy)'})),
+                      ...clientReceipts.map(r=>({date:r.date,num:r.number,type:'Payment Receipt',amt:fmt(r.amount),status:'Received',color:'var(--success)'}))
+                    ].sort((a,b)=>new Date(a.date)-new Date(b.date)).map((row,i)=>(
+                      <tr key={i}>
+                        <td>{fmtDate(row.date)}</td>
+                        <td className="font-mono" style={{fontSize:12}}>{row.num}</td>
+                        <td><span className="badge badge-navy" style={{fontSize:10}}>{row.type}</span></td>
+                        <td className="amount" style={{color:row.color}}>{row.amt}</td>
+                        <td><StatusBadge s={row.status}/></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+        </div>
+        <div className="modal-footer">
+          <button className="btn btn-outline" onClick={onClose}>Close</button>
+          {selectedClient && <button className="btn btn-primary" onClick={generatePDF}>📄 Download Statement PDF</button>}
         </div>
       </div>
     </div>
@@ -2410,6 +3050,104 @@ function exportICRPDF(doc, form, company) {
 
   pdf.save(clean(doc.number||'ICR')+'_'+clean(doc.clientName||'').split(' ').join('_')+'_InvoiceCumReceipt.pdf');
 }
+
+function exportClientStatementPDF(clientName, invoices, receipts, fyFilter) {
+  var jsPDF = window.jspdf.jsPDF;
+  var pdf = new jsPDF({ unit:'mm', format:'a4' });
+  var W=210, PL=14, PR=196, INNER=182;
+  var NAVY=[13,26,58], AMBER=[188,113,31], WHITE=[255,255,255], GRAY=[100,115,135], DARK=[20,32,65], SLATE=[175,188,215];
+  var GREEN=[20,130,70], LGRAY=[245,248,253];
+
+  var totalBilled=invoices.reduce(function(a,b){return a+(b.grand||0);},0);
+  var totalRec=receipts.reduce(function(a,b){return a+(parseFloat(b.amount)||0);},0);
+  var outstanding=totalBilled-totalRec;
+
+  // Header
+  pdf.setFillColor(NAVY[0],NAVY[1],NAVY[2]); pdf.rect(0,0,W,36,'F');
+  pdf.setFillColor(AMBER[0],AMBER[1],AMBER[2]); pdf.rect(0,36,W,2,'F');
+  try { pdf.addImage('data:image/png;base64,'+ICON_B64,'PNG',PL,4,24,24); } catch(e){}
+  pdf.setTextColor(WHITE[0],WHITE[1],WHITE[2]); pdf.setFont('helvetica','bold'); pdf.setFontSize(16);
+  pdf.text('CLIENT STATEMENT', PL+28, 15);
+  pdf.setFont('helvetica','normal'); pdf.setFontSize(8); pdf.setTextColor(SLATE[0],SLATE[1],SLATE[2]);
+  pdf.text('Go Systematic — Automation Pursuits LLP', PL+28, 22);
+  pdf.text('Period: '+(fyFilter||'All Years')+'   Generated: '+new Date().toLocaleDateString('en-IN'), PL+28, 28);
+  pdf.setTextColor(AMBER[0],AMBER[1],AMBER[2]); pdf.setFont('helvetica','bold'); pdf.setFontSize(13);
+  pdf.text(clientName, PR, 18, {align:'right'});
+  pdf.setFont('helvetica','normal'); pdf.setFontSize(8); pdf.setTextColor(SLATE[0],SLATE[1],SLATE[2]);
+  pdf.text('Account Statement', PR, 25, {align:'right'});
+
+  var y=44;
+
+  // Summary boxes
+  var bw=(INNER-10)/3;
+  [['Total Billed','Rs. '+Number(totalBilled).toLocaleString('en-IN',{minimumFractionDigits:2}),[13,26,58]],
+   ['Amount Received','Rs. '+Number(totalRec).toLocaleString('en-IN',{minimumFractionDigits:2}),[20,130,70]],
+   ['Outstanding','Rs. '+Number(outstanding).toLocaleString('en-IN',{minimumFractionDigits:2}),outstanding>0?[180,40,40]:GREEN]
+  ].forEach(function(box,i){
+    var bx=PL+i*(bw+5);
+    pdf.setFillColor(LGRAY[0],LGRAY[1],LGRAY[2]); pdf.roundedRect(bx,y,bw,18,2,2,'F');
+    pdf.setFillColor(box[2][0],box[2][1],box[2][2]); pdf.roundedRect(bx,y,bw,2,1,1,'F');
+    pdf.setTextColor(GRAY[0],GRAY[1],GRAY[2]); pdf.setFont('helvetica','normal'); pdf.setFontSize(7);
+    pdf.text(box[0], bx+4, y+8);
+    pdf.setTextColor(box[2][0],box[2][1],box[2][2]); pdf.setFont('helvetica','bold'); pdf.setFontSize(10);
+    pdf.text(box[1], bx+4, y+15);
+  });
+  y+=24;
+
+  // Transaction table
+  pdf.setFillColor(NAVY[0],NAVY[1],NAVY[2]); pdf.rect(PL,y,INNER,8,'F');
+  pdf.setTextColor(WHITE[0],WHITE[1],WHITE[2]); pdf.setFont('helvetica','bold'); pdf.setFontSize(7.5);
+  pdf.text('Date', PL+2, y+5.5);
+  pdf.text('Document #', PL+22, y+5.5);
+  pdf.text('Type', PL+60, y+5.5);
+  pdf.text('Amount', PL+120, y+5.5, {align:'right'});
+  pdf.text('Status', PR, y+5.5, {align:'right'});
+  y+=8;
+
+  var rows=[
+    ...invoices.map(function(i){return {date:i.date,num:i.number,type:i.type,amt:i.grand||0,status:i.status,isRec:false};}),
+    ...receipts.map(function(r){return {date:r.date,num:r.number||'',type:'Payment Receipt',amt:parseFloat(r.amount)||0,status:'Received',isRec:true};})
+  ].sort(function(a,b){return new Date(a.date)-new Date(b.date);});
+
+  pdf.setFont('helvetica','normal');
+  rows.forEach(function(row,idx){
+    if(y>268){ pdf.addPage(); y=20; }
+    if(idx%2===0){ pdf.setFillColor(LGRAY[0],LGRAY[1],LGRAY[2]); pdf.rect(PL,y,INNER,7,'F'); }
+    pdf.setDrawColor(215,225,245); pdf.setLineWidth(0.2); pdf.line(PL,y+7,PR,y+7);
+    pdf.setTextColor(DARK[0],DARK[1],DARK[2]); pdf.setFontSize(7.5);
+    pdf.text(new Date(row.date).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'2-digit'})||'—', PL+2, y+5);
+    pdf.text((row.num||'').substring(0,20), PL+22, y+5);
+    pdf.text(row.type.substring(0,22), PL+60, y+5);
+    if(row.isRec){ pdf.setTextColor(GREEN[0],GREEN[1],GREEN[2]); } else { pdf.setTextColor(DARK[0],DARK[1],DARK[2]); }
+    pdf.setFont('helvetica','bold');
+    pdf.text('Rs. '+Number(row.amt).toLocaleString('en-IN',{minimumFractionDigits:2}), PL+120, y+5, {align:'right'});
+    pdf.setFont('helvetica','normal'); pdf.setTextColor(GRAY[0],GRAY[1],GRAY[2]);
+    pdf.text(row.status||'—', PR, y+5, {align:'right'});
+    y+=7;
+  });
+
+  // Footer totals
+  y+=4;
+  pdf.setFillColor(NAVY[0],NAVY[1],NAVY[2]); pdf.roundedRect(PL,y,INNER,12,2,2,'F');
+  pdf.setTextColor(WHITE[0],WHITE[1],WHITE[2]); pdf.setFont('helvetica','bold'); pdf.setFontSize(9);
+  pdf.text('OUTSTANDING BALANCE', PL+4, y+8);
+  var outColor = outstanding>0?[255,140,140]:null;
+  if(outColor){pdf.setTextColor(outColor[0],outColor[1],outColor[2]);}else{pdf.setTextColor(GREEN[0],GREEN[1],GREEN[2]);}
+  pdf.text('Rs. '+Number(outstanding).toLocaleString('en-IN',{minimumFractionDigits:2}), PR, y+8, {align:'right'});
+
+  // Footer
+  var FY=pdf.internal.pageSize.getHeight()-14;
+  pdf.setFillColor(NAVY[0],NAVY[1],NAVY[2]); pdf.rect(0,FY,W,14,'F');
+  pdf.setFillColor(AMBER[0],AMBER[1],AMBER[2]); pdf.rect(0,FY,W,1.5,'F');
+  pdf.setTextColor(WHITE[0],WHITE[1],WHITE[2]); pdf.setFont('helvetica','bold'); pdf.setFontSize(8);
+  pdf.text('Go Systematic — Automation Pursuits LLP', PL, FY+8);
+  pdf.setFont('helvetica','normal'); pdf.setFontSize(6.5); pdf.setTextColor(SLATE[0],SLATE[1],SLATE[2]);
+  pdf.text('This is a computer-generated statement', W/2, FY+8, {align:'center'});
+  pdf.text(new Date().toLocaleDateString('en-IN'), PR, FY+8, {align:'right'});
+
+  pdf.save('Statement_'+clientName.split(' ').join('_')+'_'+(fyFilter||'All')+'.pdf');
+}
+
 
 function exportToExcel(data, sheetName) {
   const wb = XLSX.utils.book_new();
