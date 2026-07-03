@@ -661,6 +661,41 @@ function getFY(dateStr) {
 function currentFY() { return getFY(new Date().toISOString()); }
 const ALL_FYS = ['All','FY24-25','FY25-26','FY26-27','FY27-28'];
 
+// ─── ACCOUNTING RULES (single source of truth) ───
+// A document counts as REVENUE only if it represents a real, final sale that
+// hasn't been superseded by a later document.
+// - Quotation: never revenue (just an estimate)
+// - Proforma Invoice: never revenue (payment request; not a tax document)
+// - Cancelled anything: never revenue
+// - A document that was converted into another (convertedTo set): superseded, skip it
+// - Tax Invoice / Invoice cum Receipt / Debit Note: revenue (if not superseded/cancelled)
+// - Credit Note: negative revenue (reduces income)
+function isRevenueDoc(d) {
+  if (!d) return false;
+  if (d.status === 'Cancelled') return false;
+  if (d.convertedTo) return false;               // superseded by a later doc
+  if (d.type === 'Quotation') return false;
+  if (d.type === 'Proforma Invoice') return false;
+  if (d.type === 'Credit Note') return false;    // handled separately as negative
+  return true; // Tax Invoice, Invoice cum Receipt, Debit Note
+}
+function revenueOf(list) {
+  return (list||[]).reduce((sum,d)=>{
+    if (d.status === 'Cancelled') return sum;
+    if (d.convertedTo) return sum;
+    if (d.type === 'Credit Note') return sum - (d.grand||0);
+    if (isRevenueDoc(d)) return sum + (d.grand||0);
+    return sum;
+  }, 0);
+}
+// GST collected: only from real revenue docs
+function gstCollectedOf(list) {
+  return (list||[]).reduce((sum,d)=>{
+    if (!isRevenueDoc(d)) return sum;
+    return sum + (d.gstTotal||0);
+  }, 0);
+}
+
 // ─── MAIN APP ───
 
 function App() {
@@ -809,7 +844,7 @@ function Dashboard({ data, setPage, fyFilter, setFyFilter }) {
   const expenses = fyFilter==='All' ? allExpenses : allExpenses.filter(e=>getFY(e.date)===fyFilter);
   const receipts = fyFilter==='All' ? allReceipts : allReceipts.filter(r=>getFY(r.date)===fyFilter);
 
-  const totalBilled = invoices.filter(i=>['Tax Invoice','Proforma Invoice','Quotation'].includes(i.type)).reduce((a,b)=>a+(b.grand||0),0);
+  const totalBilled = revenueOf(invoices);
   const totalReceived = receipts.reduce((a,b)=>a+(b.amount||0),0);
   const totalExpenses = expenses.reduce((a,b)=>a+(b.amount||0),0);
   const outstanding = totalBilled - totalReceived;
@@ -1011,6 +1046,11 @@ function Invoices({ data, persist, company, fyFilter }) {
     setTimeout(() => exportICRPDF(newDoc, icr, company), 400);
   };
 
+  const cancelDoc = (doc) => {
+    if(!confirm('Cancel '+doc.number+'? It will no longer be counted as income. You can re-activate it later by changing status.')) return;
+    persist({ ...data, invoices: invoices.map(i=>i.id===doc.id?{...i, status:'Cancelled'}:i) });
+  };
+
   const convertToProforma = (quotation) => {
     const newNum = quotation.number.replace('QUO','PI').replace('Q-','PI-') + '-PI';
     const pi = {
@@ -1129,7 +1169,13 @@ function Invoices({ data, persist, company, fyFilter }) {
                               if(linkedICR) {
                                 return <span title={'ICR: '+linkedICR.number} style={{fontSize:11,color:'var(--success)',padding:'0 4px',fontWeight:600}}>✓ ICR</span>;
                               }
-                              return <button className="btn btn-ghost btn-sm" onClick={()=>setShowICR(inv)} title="Convert to Invoice cum Receipt" style={{color:'var(--success)',fontSize:16}}>🔄</button>;
+                              if(inv.status==='Cancelled') {
+                                return <span title="Cancelled — not counted as income" style={{fontSize:11,color:'var(--danger)',fontWeight:600,padding:'0 4px'}}>✕ Cancelled</span>;
+                              }
+                              return <span style={{display:'flex',gap:2}}>
+                                <button className="btn btn-ghost btn-sm" onClick={()=>setShowICR(inv)} title="Payment received — convert to Invoice cum Receipt" style={{color:'var(--success)',fontSize:15}}>🔄</button>
+                                <button className="btn btn-ghost btn-sm" onClick={()=>cancelDoc(inv)} title="Cancel (no payment received)" style={{color:'var(--danger)',fontSize:13}}>✕</button>
+                              </span>;
                             }
                             return null;
                           })()}
@@ -1859,8 +1905,8 @@ function Reports({ data, fyFilter, setFyFilter }) {
   const expenses = fyFilter==='All' ? allExpenses : allExpenses.filter(e=>getFY(e.date)===fyFilter);
   const receipts = fyFilter==='All' ? allReceipts : allReceipts.filter(r=>getFY(r.date)===fyFilter);
 
-  const totalBilled = invoices.reduce((a,b)=>a+(b.grand||0),0);
-  const totalGSTCollected = invoices.reduce((a,b)=>a+(b.gstTotal||0),0);
+  const totalBilled = revenueOf(invoices);
+  const totalGSTCollected = gstCollectedOf(invoices);
   const totalReceived = receipts.reduce((a,b)=>a+(parseFloat(b.amount)||0),0);
   const totalExpenses = expenses.reduce((a,b)=>a+(parseFloat(b.amount)||0),0);
   const totalGSTInput = expenses.reduce((a,b)=>a+(parseFloat(b.gstInput)||0),0);
@@ -1870,6 +1916,7 @@ function Reports({ data, fyFilter, setFyFilter }) {
   const byClient = {};
   invoices.forEach(inv => {
     if (!inv.clientName) return;
+    if (!isRevenueDoc(inv)) return;  // skip proforma, quotation, superseded, cancelled
     if (!byClient[inv.clientName]) byClient[inv.clientName] = 0;
     byClient[inv.clientName] += inv.grand||0;
   });
