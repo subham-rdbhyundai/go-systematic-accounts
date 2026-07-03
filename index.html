@@ -54,7 +54,11 @@
     background: var(--off-white);
     color: var(--text-primary);
     min-height: 100vh;
+    overflow-x: hidden;
+    max-width: 100vw;
   }
+  html { overflow-x: hidden; }
+  #root { overflow-x: hidden; max-width: 100vw; }
 
   /* SIDEBAR */
   .sidebar {
@@ -537,69 +541,6 @@
     .content { padding-bottom: 80px; }
   }
 
-  /* ── PIN LOCK SCREEN ── */
-  .pin-screen {
-    position: fixed; inset: 0; z-index: 9999;
-    background: var(--navy-dark);
-    display: flex; flex-direction: column;
-    align-items: center; justify-content: center;
-    padding: 24px;
-  }
-  .pin-logo {
-    margin-bottom: 28px; text-align: center;
-  }
-  .pin-logo img { height: 56px; margin-bottom: 12px; display: block; margin-left: auto; margin-right: auto; }
-  .pin-logo .brand { font-family:'Rajdhani',sans-serif; font-size:26px; font-weight:700; color:white; }
-  .pin-logo .sub { font-size:10px; letter-spacing:2px; color:var(--amber); text-transform:uppercase; margin-top:2px; }
-  .pin-card {
-    background: rgba(255,255,255,0.05);
-    border: 1px solid rgba(255,255,255,0.1);
-    border-radius: 16px;
-    padding: 28px 32px;
-    width: 100%; max-width: 340px;
-    backdrop-filter: blur(10px);
-  }
-  .pin-title { font-size:15px; font-weight:600; color:white; text-align:center; margin-bottom:6px; }
-  .pin-sub { font-size:12px; color:rgba(255,255,255,0.4); text-align:center; margin-bottom:24px; }
-  .pin-dots {
-    display: flex; justify-content: center; gap: 14px; margin-bottom: 24px;
-  }
-  .pin-dot {
-    width: 14px; height: 14px; border-radius: 50%;
-    border: 2px solid rgba(255,255,255,0.25);
-    transition: all 0.15s;
-  }
-  .pin-dot.filled { background: var(--amber); border-color: var(--amber); transform: scale(1.15); }
-  .pin-dot.error { background: var(--danger); border-color: var(--danger); animation: shake 0.4s; }
-  @keyframes shake {
-    0%,100%{transform:translateX(0)}
-    20%,60%{transform:translateX(-6px)}
-    40%,80%{transform:translateX(6px)}
-  }
-  .pin-grid {
-    display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; margin-bottom: 12px;
-  }
-  .pin-btn {
-    height: 58px; border: none; border-radius: 10px;
-    background: rgba(255,255,255,0.07);
-    color: white; font-size: 20px; font-weight: 600;
-    font-family: 'Rajdhani',sans-serif;
-    cursor: pointer; transition: all 0.12s;
-    display: flex; align-items: center; justify-content: center;
-    user-select: none; -webkit-tap-highlight-color: transparent;
-  }
-  .pin-btn:hover { background: rgba(255,255,255,0.14); }
-  .pin-btn:active { background: rgba(188,113,31,0.3); transform: scale(0.95); }
-  .pin-btn.del { font-size:18px; color:rgba(255,255,255,0.5); }
-  .pin-btn.zero { grid-column: 2; }
-  .pin-error { text-align:center; color:var(--danger); font-size:12px; margin-top:8px; min-height:16px; }
-  .pin-setup-hint { text-align:center; color:rgba(255,255,255,0.35); font-size:11px; margin-top:12px; }
-  .pin-forgot { 
-    text-align:center; margin-top:14px;
-    font-size:11px; color:rgba(255,255,255,0.3);
-    cursor:pointer; text-decoration:underline;
-  }
-  .pin-forgot:hover { color:rgba(255,255,255,0.6); }
 </style>
 </head>
 <body>
@@ -721,204 +662,8 @@ function currentFY() { return getFY(new Date().toISOString()); }
 const ALL_FYS = ['All','FY24-25','FY25-26','FY26-27','FY27-28'];
 
 // ─── MAIN APP ───
-// ─── PIN LOCK ────────────────────────────────────────────────
-const PIN_KEY   = 'gs_pin_hash';
-const PIN_SESS  = 'gs_pin_unlocked';
-const LOGO_IMG  = `data:image/jpeg;base64,${LOGO_B64}`;
-
-function hashPin(pin) {
-  // Simple hash for PIN — browser compatible
-  var h = 5381;
-  for(var i=0;i<pin.length;i++){ h = ((h<<5)+h)+pin.charCodeAt(i); h = h&h; }
-  return String(Math.abs(h));
-}
-
-function PinLock({ onUnlock }) {
-  const storedHash  = localStorage.getItem(PIN_KEY);
-  const isSetup     = !storedHash;
-  const [phase, setPhase]   = useState(isSetup ? 'setup' : 'enter');
-  // phase: 'setup' | 'confirm' | 'enter' | 'change_old' | 'change_new' | 'change_confirm'
-  const [digits, setDigits] = useState([]);
-  const [first,  setFirst]  = useState('');   // stores first entry during setup/confirm
-  const [error,  setError]  = useState('');
-  const [shake,  setShake]  = useState(false);
-  const PIN_LEN = 4;
-
-  const triggerError = (msg) => {
-    setError(msg); setShake(true);
-    setTimeout(()=>{ setDigits([]); setShake(false); setError(''); }, 1000);
-  };
-
-  const addDigit = (d) => {
-    if(digits.length >= PIN_LEN) return;
-    const next = [...digits, d];
-    setDigits(next);
-    if(next.length === PIN_LEN) {
-      setTimeout(()=>handleComplete(next.join('')), 120);
-    }
-  };
-
-  const handleComplete = (pin) => {
-    if(phase === 'setup') {
-      setFirst(pin); setDigits([]); setPhase('confirm');
-    } else if(phase === 'confirm') {
-      if(pin === first) {
-        localStorage.setItem(PIN_KEY, hashPin(pin));
-        sessionStorage.setItem(PIN_SESS, String(Date.now()));
-        onUnlock();
-      } else {
-        triggerError("PINs don't match. Try again.");
-        setPhase('setup'); setFirst('');
-      }
-    } else if(phase === 'enter') {
-      if(hashPin(pin) === storedHash) {
-        sessionStorage.setItem(PIN_SESS, String(Date.now()));
-        onUnlock();
-      } else {
-        triggerError('Incorrect PIN. Try again.');
-      }
-    } else if(phase === 'change_old') {
-      if(hashPin(pin) === storedHash) {
-        setDigits([]); setPhase('change_new');
-      } else {
-        triggerError('Incorrect current PIN.');
-      }
-    } else if(phase === 'change_new') {
-      setFirst(pin); setDigits([]); setPhase('change_confirm');
-    } else if(phase === 'change_confirm') {
-      if(pin === first) {
-        localStorage.setItem(PIN_KEY, hashPin(pin));
-        sessionStorage.setItem(PIN_SESS, String(Date.now()));
-        onUnlock();
-      } else {
-        triggerError("PINs don't match."); setPhase('change_new'); setFirst('');
-      }
-    }
-  };
-
-  const del = () => setDigits(d=>d.slice(0,-1));
-
-  const forgotPin = () => {
-    if(confirm('This will clear your PIN and require you to set a new one. Data is NOT deleted. Continue?')) {
-      localStorage.removeItem(PIN_KEY);
-      setPhase('setup'); setDigits([]); setFirst(''); setError('');
-    }
-  };
-
-  const titles = {
-    setup:          { t:'Set Your PIN', s:'Choose a 4-digit PIN to secure your dashboard' },
-    confirm:        { t:'Confirm PIN',  s:'Enter the same PIN again to confirm' },
-    enter:          { t:'Enter PIN',    s:'Enter your 4-digit PIN to access GS Accounts' },
-    change_old:     { t:'Current PIN',  s:'Enter your current PIN to proceed' },
-    change_new:     { t:'New PIN',      s:'Choose a new 4-digit PIN' },
-    change_confirm: { t:'Confirm PIN',  s:'Re-enter your new PIN to confirm' },
-  };
-  const { t, s } = titles[phase] || titles.enter;
-
-  return (
-    <div className="pin-screen">
-      <div className="pin-logo">
-        <img src={LOGO_IMG} alt="Go Systematic" onError={e=>e.target.style.display='none'}/>
-        <div className="brand">Go Systematic</div>
-        <div className="sub">Accounts Dashboard</div>
-      </div>
-
-      <div className="pin-card">
-        <div className="pin-title">{t}</div>
-        <div className="pin-sub">{s}</div>
-
-        <div className="pin-dots">
-          {[0,1,2,3].map(i=>(
-            <div key={i} className={`pin-dot${digits.length>i?' filled':''}${shake?' error':''}`}/>
-          ))}
-        </div>
-
-        <div className="pin-grid">
-          {[1,2,3,4,5,6,7,8,9].map(n=>(
-            <button key={n} className="pin-btn" onClick={()=>addDigit(String(n))}>{n}</button>
-          ))}
-          <div/>
-          <button className="pin-btn zero" onClick={()=>addDigit('0')}>0</button>
-          <button className="pin-btn del" onClick={del}>⌫</button>
-        </div>
-
-        <div className="pin-error">{error}</div>
-
-        {phase==='setup' && (
-          <div className="pin-setup-hint">🔒 Your PIN is stored locally and never shared</div>
-        )}
-        {phase==='enter' && (
-          <div className="pin-forgot" onClick={forgotPin}>Forgot PIN?</div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ─── PIN SETTINGS PANEL (inside Settings page) ───────────────
-function PinSettings() {
-  const hasPin = !!localStorage.getItem(PIN_KEY);
-  const [showChange, setShowChange] = useState(false);
-
-  const removePin = () => {
-    if(confirm('Remove PIN protection? Anyone can open the app without a PIN.')) {
-      localStorage.removeItem(PIN_KEY);
-      sessionStorage.removeItem(PIN_SESS);
-      window.location.reload();
-    }
-  };
-
-  return (
-    <div className="card" style={{marginTop:20}}>
-      <div className="card-header">
-        <span className="card-title">🔒 PIN Protection</span>
-        <span style={{fontSize:12,color:'var(--text-muted)'}}>{hasPin?'Active ✅':'Not set'}</span>
-      </div>
-      <div className="card-body">
-        {hasPin ? (
-          <div>
-            <div className="alert alert-success" style={{marginBottom:14}}>
-              ✅ Your dashboard is PIN-protected. A 4-digit PIN is required every session.
-            </div>
-            <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>
-              <button className="btn btn-outline" onClick={()=>{ sessionStorage.removeItem(PIN_SESS); window.location.reload(); }} >
-                🔐 Lock Now
-              </button>
-              <button className="btn btn-outline" onClick={removePin}>
-                🔓 Remove PIN
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div>
-            <p style={{fontSize:13,color:'var(--text-secondary)',marginBottom:14}}>
-              Add a 4-digit PIN to prevent unauthorised access on shared or mobile devices. PIN is stored locally — only on this browser.
-            </p>
-            <button className="btn btn-primary" onClick={()=>{ localStorage.removeItem(PIN_KEY); sessionStorage.removeItem(PIN_SESS); window.location.reload(); }}>
-              🔒 Set Up PIN
-            </button>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
 
 function App() {
-  const [unlocked, setUnlocked] = useState(()=>{
-    const hasPIN = !!localStorage.getItem(PIN_KEY);
-    if(!hasPIN) return true; // No PIN set — always unlocked
-    // Check session unlock (with timestamp — valid for 8 hours)
-    try {
-      const sess = sessionStorage.getItem(PIN_SESS);
-      if(sess) {
-        const t = parseInt(sess);
-        if(Date.now() - t < 8*60*60*1000) return true; // unlocked within 8h
-      }
-    } catch(e){}
-    return false;
-  });
   const [page, setPage] = useState('dashboard');
   const [data, setData] = useState(EMPTY_DATA);
   const [showConfigModal, setShowConfigModal] = useState(false);
@@ -964,8 +709,6 @@ function App() {
     { id: 'reports', icon: '📈', label: 'Reports' },
     { id: 'settings', icon: '⚙️', label: 'Settings' },
   ];
-
-  if(!unlocked) return <PinLock onUnlock={()=>setUnlocked(true)}/>;
 
   return (
     <div>
@@ -1725,11 +1468,11 @@ function Receipts({ data, persist, company, fyFilter }) {
 
   const save = (r) => {
     const rec = { ...r, id: r.id||genId('REC'), date: r.date||today() };
-    const updated = r.id ? receipts.map(x=>x.id===r.id?rec:x) : [rec,...receipts];
+    const updated = r.id ? allRec.map(x=>x.id===r.id?rec:x) : [rec,...allRec];
     persist({ ...data, receipts: updated });
     setShowForm(false); setEditing(null);
   };
-  const del = (id) => { if(confirm('Delete receipt?')) persist({ ...data, receipts: receipts.filter(r=>r.id!==id) }); };
+  const del = (id) => { if(confirm('Delete receipt?')) persist({ ...data, receipts: allRec.filter(r=>r.id!==id) }); };
 
   return (
     <div>
@@ -1858,7 +1601,7 @@ function ReceiptForm({ initial, invoices, clients, onSave, onClose }) {
 }
 
 // ─── EXPENSES ───
-function Expenses({ data, persist }) {
+function Expenses({ data, persist, fyFilter }) {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
   const [catFilter, setCatFilter] = useState('All');
@@ -1871,11 +1614,11 @@ function Expenses({ data, persist }) {
 
   const save = (exp) => {
     const e = { ...exp, id: exp.id||genId('EXP'), date: exp.date||today() };
-    const updated = exp.id ? expenses.map(x=>x.id===exp.id?e:x) : [e,...expenses];
+    const updated = exp.id ? allExpenses2.map(x=>x.id===exp.id?e:x) : [e,...allExpenses2];
     persist({ ...data, expenses: updated });
     setShowForm(false); setEditing(null);
   };
-  const del = (id) => { if(confirm('Delete expense?')) persist({ ...data, expenses: expenses.filter(e=>e.id!==id) }); };
+  const del = (id) => { if(confirm('Delete expense?')) persist({ ...data, expenses: allExpenses2.filter(e=>e.id!==id) }); };
 
   return (
     <div>
@@ -2272,7 +2015,6 @@ function Settings({ github, onConfigSave, data, persist, company }) {
         </div>
       </div>
       <CompanyInfoForm company={company} data={data} persist={persist} />
-      <PinSettings />
     </div>
   );
 }
