@@ -49,53 +49,8 @@
       "paymentMode": "NEFT",
       "transRef": "HDFCH01099002658",
       "receiptNumber": "REC-MR4MVR9T",
-      "paymentNotes": "\"Payment received ÃÂ¢ÃÂÃÂ¹29,400 against Invoice for ÃÂ¢ÃÂÃÂ¹30,000. TDS @ 2% (ÃÂ¢ÃÂÃÂ¹600) deducted under Section 194C / 194J [use whichever applies] by Zillion Analytics Pvt Ltd. TDS certificate (Form 16A) to be provided by the deductor.",
+      "paymentNotes": "\"Payment received ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ¹29,400 against Invoice for ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ¹30,000. TDS @ 2% (ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ¹600) deducted under Section 194C / 194J [use whichever applies] by Zillion Analytics Pvt Ltd. TDS certificate (Form 16A) to be provided by the deductor.",
       "convertedFrom": "INV-MR3CUA6K"
-    },
-    {
-      "type": "Tax Invoice",
-      "number": "GS-2026-2027-07-002",
-      "date": "2026-07-02",
-      "dueDate": "2026-07-30",
-      "status": "Sent",
-      "clientName": "Zillion Analytics Pvt Ltd ",
-      "clientAddress": "1003, 10th Floor, Emaar Collonade, Golf Course Extn. road, Gurgaon, Haryana 122102",
-      "clientGST": "06AAACZ9796M1ZB",
-      "clientEmail": "accounts@zillion.io",
-      "items": [
-        {
-          "desc": "REFERRAL FEE",
-          "hsn": "",
-          "qty": 1,
-          "unit": "Nos",
-          "rate": "30000",
-          "gst": "0"
-        }
-      ],
-      "discount": 0,
-      "notes": "REFERRAL FEE FOR: STRONG WINGS LLP \nPI# 1733\nPAYMENT MADE ON: 2ND JULY 2026",
-      "terms": "Payment due within 30 days.\nPlease include invoice number in payment reference.",
-      "placeOfSupply": "",
-      "reverseCharge": false,
-      "subtotal": 30000,
-      "gstTotal": 0,
-      "discAmt": 0,
-      "grand": 30000,
-      "lines": [
-        {
-          "desc": "REFERRAL FEE",
-          "hsn": "",
-          "qty": 1,
-          "unit": "Nos",
-          "rate": "30000",
-          "gst": "0",
-          "subtotal": 30000,
-          "gstAmt": 0,
-          "total": 30000
-        }
-      ],
-      "id": "INV-MR3CUA6K",
-      "convertedTo": "ICR-MR4N2ALG"
     },
     {
       "type": "Invoice cum Receipt",
@@ -195,5 +150,5 @@
       "branch": "Gurusaday Road Branch"
     }
   },
-  "sha": "8ac68e03bd5c4846cda2117a09bb505a52305e7f"
+  "sha": "d595fbf3ddba792037afa3741bbc79fb49ad0337"
 }
