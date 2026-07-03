@@ -49,7 +49,7 @@
       "paymentMode": "NEFT",
       "transRef": "HDFCH01099002658",
       "receiptNumber": "REC-MR4MVR9T",
-      "paymentNotes": "\"Payment received Ã¢ÂÂ¹29,400 against Invoice for Ã¢ÂÂ¹30,000. TDS @ 2% (Ã¢ÂÂ¹600) deducted under Section 194C / 194J [use whichever applies] by Zillion Analytics Pvt Ltd. TDS certificate (Form 16A) to be provided by the deductor.",
+      "paymentNotes": "\"Payment received ÃÂ¢ÃÂÃÂ¹29,400 against Invoice for ÃÂ¢ÃÂÃÂ¹30,000. TDS @ 2% (ÃÂ¢ÃÂÃÂ¹600) deducted under Section 194C / 194J [use whichever applies] by Zillion Analytics Pvt Ltd. TDS certificate (Form 16A) to be provided by the deductor.",
       "convertedFrom": "INV-MR3CUA6K"
     },
     {
@@ -162,7 +162,10 @@
       "amount": 30000,
       "mode": "NEFT",
       "transRef": "HDFCH01099002658",
-      "notes": "Auto-generated from Invoice cum Receipt ICR-MR4N2ALG"
+      "notes": "Auto-generated from Invoice cum Receipt ICR-MR4N2ALG",
+      "grossAmount": "30000",
+      "tdsAmount": "600",
+      "tdsSection": "Other"
     },
     {
       "id": "REC-MR4Q4WF4",
@@ -192,5 +195,5 @@
       "branch": "Gurusaday Road Branch"
     }
   },
-  "sha": "217aaba1e0c516c6f33bfdea54f76f1db23706e0"
+  "sha": "8ac68e03bd5c4846cda2117a09bb505a52305e7f"
 }
